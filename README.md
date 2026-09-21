@@ -1,0 +1,2 @@
+# video-to-live-photo-honor
+适用于荣耀手机相册展示livephoto的视频转livephoto照片的静态网页。之前之前搜索过一些视频转live photo的博客以及开源的live-photo-conv等等github的项目让ai运行了一下发现不能在荣耀手机上进行显示出是一个动态的图片。今天看到酷安已经https://github.com/zsz-of/Z-LivePhoto-Converter 有应用实现了于是把相机APK以及一个拍的live photo样例丢给AI让它去看动态jpg文件的原始数据之类的 发现其实比较简单之前我看过的项目是谷歌的和苹果的动态图片主要就是给图片插了一个xml的什么文本之类的，而荣耀的这部分Xml文本多了一点点所以荣耀自己的相册 就不能识别谷歌和苹果的那种基础的动态图片。实现比较简单直接
