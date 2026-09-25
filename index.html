@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>LivePhoto 制作</title>
+  <link rel="stylesheet" href="style.3.css" />
+</head>
+<body>
+  <!-- 全屏上传：无标题，点击任意位置选择视频 -->
+  <main id="stage" class="stage empty">
+    <div class="placeholder" id="placeholder">
+      <div class="ph-icon">🎬</div>
+      <p class="ph-title">点击任意位置上传视频</p>
+      <p class="ph-hint">支持 MP4 / MOV，全程本地处理，不会上传服务器</p>
+    </div>
+
+    <div class="workspace" id="workspace">
+      <!-- 视频：占满屏幕宽度，无边框 -->
+      <div class="preview-wrap" id="previewWrap">
+        <video id="preview" playsinline></video>
+        <div id="coverBadge" class="cover-badge" hidden></div>
+      </div>
+
+      <div class="ctrls" id="ctrls">
+        <button id="play" class="ctrl" disabled>▶ 播放</button>
+        <button id="stepB" class="ctrl ghost" disabled>⤺帧</button>
+        <button id="stepF" class="ctrl ghost" disabled>帧⤼</button>
+        <button id="p3" class="ctrl ghost" disabled>3秒</button>
+        <button id="p5" class="ctrl ghost" disabled>5秒</button>
+        <button id="p10" class="ctrl ghost" disabled>10秒</button>
+        <button id="pAll" class="ctrl ghost" disabled>整段</button>
+        <button id="setCover" class="ctrl" disabled>设封面</button>
+        <button id="export" class="ctrl primary" disabled>导出</button>
+        <button id="rePick" class="ctrl ghost">换视频</button>
+      </div>
+
+      <div class="time-readout">
+        <span class="tr-item"><span class="tr-k">视频总时长</span><b id="tDur">00:00</b></span>
+        <span class="tr-item"><span class="tr-k">当前截取</span><b id="tStart">00:00</b><span class="sep">–</span><b id="tEnd">00:00</b></span>
+      </div>
+
+      <!-- 时间轴：横向胶片条（真实抽帧缩略图，0.5s/帧，两端圆角，滚动按需抽帧）+ 选段/播放头叠加 -->
+      <div class="timeline" id="timeline">
+        <div class="timeline-inner" id="tlInner">
+          <div class="ruler" id="ruler"></div>
+          <div class="strip" id="strip"></div>
+          <div class="track" id="track">
+            <div class="mask mask-l" id="maskL"></div>
+            <div class="mask mask-r" id="maskR"></div>
+            <div class="sel-band" id="selBand"><span class="sel-label">保留</span></div>
+            <div class="handle handle-l" id="handleL"><span class="grip"></span></div>
+            <div class="handle handle-r" id="handleR"><span class="grip"></span></div>
+            <div class="playhead" id="playhead"><span class="knob"></span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="legend">
+        <span><i class="lg-band"></i>红框＝保留段</span>
+        <span><i class="lg-head"></i>蓝线＝播放位置</span>
+        <span>拖红滑块调起/止 · 拖进度条预览</span>
+      </div>
+
+      <div class="footer">红框＝保留段 · 拖动矩形选段 · 松手即播放　|　<b>LivePhoto 制作</b>（本地处理，不上传服务器）</div>
+    </div>
+
+    <div class="hint" id="hint"></div>
+  </main>
+
+  <!-- 加载动画（视频读取时的小药丸） -->
+  <div id="loading" class="loading" hidden>
+    <div class="spinner"></div>
+    <div class="loading-text" id="loadingText">加载中…</div>
+  </div>
+
+  <!-- 导出进度（居中大卡片，明显可见） -->
+  <div id="exporting" class="exporting" hidden>
+    <div class="ex-card">
+      <div class="ex-spinner"></div>
+      <div class="ex-text" id="exText">导出中…</div>
+      <div class="ex-progress"><div class="ex-bar" id="exBar"></div></div>
+      <div class="ex-pct" id="exPct">0%</div>
+    </div>
+  </div>
+
+  <!-- 导出后再次下载 -->
+  <div id="dlWrap" class="dl-wrap" hidden>
+    <div class="dl-card">
+      <p id="dlMsg">已生成 LivePhoto</p>
+      <a id="dlLink" class="ctrl primary" download>下载 LivePhoto</a>
+      <button id="dlClose" class="ctrl ghost">关闭</button>
+    </div>
+  </div>
+
+  <input id="file" type="file" accept="video/*" hidden />
+
+  <script src="app.3.js"></script>
+</body>
+</html>

@@ -1,0 +1,24 @@
+# Playwright 验证 / 调试产物（非交付物）
+node_modules/
+package.json
+package-lock.json
+test.webm
+test_h264.mp4
+sample_h264.mp4
+long30.webm
+shot.png
+verify.js
+probe.js
+render_mobile.js
+render_portrait.js
+make_portrait.js
+test_drag.js
+diag.js
+diag*.js
+diag*.txt
+probe_white.js
+test_fix.js
+*.webm
+*.png
+portrait.webm
+clip8.webm
