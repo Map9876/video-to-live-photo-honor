@@ -28,13 +28,17 @@ const loading = $('loading'), loadingText = $('loadingText');
 const exporting = $('exporting'), exText = $('exText'), exBar = $('exBar'), exPct = $('exPct');
 const dlWrap = $('dlWrap'), dlLink = $('dlLink'), dlMsg = $('dlMsg'), dlClose = $('dlClose');
 
-const PPS = CELL / FRAME;   // 56px / 0.5s = 112 px/秒；胶片条每格 = 0.5s，与 CSS --cell 对齐
+const BASE_PPS = CELL / FRAME;   // 56px / 0.5s = 112 px/秒（基础缩放）；胶片条每格 = 0.5s，与 CSS --cell 对齐
+let pps = BASE_PPS;              // 当前像素/秒（双指放缩会改变）
+let viewStart = 0;              // 视口左边缘对应的时间(秒)；拖动/放缩都围绕它
 
 // ===== 状态 =====
 let url = null;
 let duration = 0;
 let videoW = 0, videoH = 0;
 let sel = { start: 0, end: 0 };
+let fps = 30;           // 视频真实帧率（探测得到，用于标尺帧刻度）
+let _rulerKey = '';     // 标尺去重键：pps/viewStart/fps 未变则不重绘
 let playT = 0;          // 播放头时间
 let coverT = 0;         // 封面帧时间
 let seeker = null;      // 离屏抽帧用
@@ -52,9 +56,87 @@ function setHint(msg, isErr) {
   hint.textContent = msg || '';
   hint.classList.toggle('err', !!isErr);
 }
-function contentWidth() { return duration * PPS; }
-function timeToX(t) { return t * PPS; }
-function xToTime(x) { return Math.min(duration, Math.max(0, x / PPS)); }
+function contentWidth() { return duration * pps; }
+function timeToX(t) { return t * pps; }                 // 内容坐标（视口平移由 tlInner 的 transform 承担）
+function xToTime(x) { return Math.min(duration, Math.max(0, x / pps)); }  // x 已相对 #track 左缘（=内容时间 viewStart），无需再加
+
+// 缩放范围：最小=整段刚好铺满视口；最大=单格(0.5s)约铺满视口（即“缩放到 1 帧”可逐帧查看）
+function minPps() { return Math.max(8, (timeline.clientWidth || window.innerWidth) / Math.max(0.5, duration)); }
+function maxPps() { return Math.max(BASE_PPS * 20, (timeline.clientWidth || window.innerWidth) / FRAME); }
+function clampView(v) { const maxS = Math.max(0, duration - (timeline.clientWidth || 0) / pps); return Math.min(maxS, Math.max(0, v)); }
+function applyPan() { tlInner.style.transform = 'translateX(' + (-viewStart * pps) + 'px)'; buildRuler(); }
+function applyZoom() {
+  const cw = pps * FRAME;
+  strip.style.width = contentWidth() + 'px';
+  Array.from(strip.children).forEach(c => { c.style.flex = '0 0 ' + cw + 'px'; });
+  buildRuler();
+}
+
+// 主刻度间隔：选一个“巧数”秒数，使主刻度像素间距 >= minPx（放大时回到 1 秒，缩小到 60 秒/分钟级）
+function niceStepSeconds(minStep) {
+  const steps = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 1800, 3600, 7200, 21600, 43200];
+  for (const s of steps) if (s >= minStep) return s;
+  return steps[steps.length - 1];
+}
+
+// ===== 探测真实帧率（解析 MP4/MOV 的 moov → vide trak → mdhd.timescale / stts.sampleDelta）=====
+function read4(dv, off) { let s = ''; for (let i = 0; i < 4; i++) s += String.fromCharCode(dv.getUint8(off + i)); return s; }
+function eachBox(dv, start, end, cb) {
+  const e = Math.min(end, dv.byteLength);
+  let p = start;
+  while (p + 8 <= e) {
+    let size = dv.getUint32(p); const type = read4(dv, p + 4); let header = 8;
+    if (size === 1) { size = Number(dv.getBigUint64(p + 8)); header = 16; }
+    else if (size === 0) size = e - p;
+    if (size < 8) break;
+    cb(type, p + header, size - header, dv);
+    p += size;
+  }
+}
+function trakFps(dv, start, size) {
+  let hdlr = null, ts = 0, delta = 0;
+  eachBox(dv, start, start + size, (t, ps, sz, v) => {
+    if (t !== 'mdia') return;
+    eachBox(v, ps, ps + sz, (t2, ps2, sz2, v2) => {
+      if (t2 === 'hdlr') hdlr = read4(v2, ps2 + 8);
+      else if (t2 === 'mdhd') { const ver = v2.getUint8(ps2); ts = ver === 1 ? v2.getUint32(ps2 + 20) : v2.getUint32(ps2 + 12); }
+      else if (t2 === 'minf') eachBox(v2, ps2, ps2 + sz2, (t3, ps3, sz3, v3) => {
+        if (t3 === 'stbl') eachBox(v3, ps3, ps3 + sz3, (t4, ps4, sz4, v4) => {
+          if (t4 === 'stts') { const n = v4.getUint32(ps4 + 4); if (n > 0) delta = v4.getUint32(ps4 + 12); }
+        });
+      });
+    });
+  });
+  if (hdlr !== 'vide' || !ts || !delta) return null;
+  return ts / delta;
+}
+function parseMp4Fps(dv, len) {
+  let moov = null;
+  eachBox(dv, 0, len, (t, ps, sz, v) => { if (t === 'moov') moov = { ps, sz, v }; });
+  if (!moov) return null;
+  let r = null;
+  eachBox(moov.v, moov.ps, moov.ps + moov.sz, (t, ps, sz, v) => {
+    if (!r && t === 'trak') { const f = trakFps(v, ps, sz); if (f) r = f; }
+  });
+  return r;
+}
+async function detectFps(file) {
+  try {
+    const chunk = 8 * 1024 * 1024, sz = file.size;
+    const reads = [file.slice(0, Math.min(chunk, sz)).arrayBuffer()];
+    if (sz > chunk) reads.push(file.slice(Math.max(0, sz - chunk)).arrayBuffer());
+    const bufs = await Promise.all(reads);
+    const common = [23.976, 24, 25, 29.97, 30, 48, 50, 59.94, 60, 120];
+    for (const b of bufs) {
+      const f = parseMp4Fps(new DataView(b), b.byteLength);
+      if (!f) continue;
+      let best = f, bd = 1e9;
+      for (const c of common) { const d = Math.abs(c - f); if (d < bd) { bd = d; best = c; } }
+      return bd <= Math.max(0.5, f * 0.03) ? best : f;   // 接近常用帧率则对齐，否则用原始值
+    }
+  } catch (e) {}
+  return null;
+}
 
 // ===== 本地持久化（IndexedDB）：导入的视频存本地，刷新网页后自动恢复 =====
 // 当前预览用的是 URL.createObjectURL(file) 生成的 blob: 临时链接，只在本页会话有效，
@@ -127,6 +209,8 @@ function loadFile(f) {
     }, 200);
   }, { once: true });
   preview.addEventListener('error', () => { hideLoading(); setHint('无法解码该视频', true); }, { once: true });
+  // 探测真实帧率（仅依赖文件字节，解析 moov；不阻塞解码）。得到后刷新标尺帧刻度
+  detectFps(f).then(v => { if (v && Math.abs(v - fps) > 0.01) { fps = v; if (duration) buildRuler(); } });
 }
 
 fileInput.addEventListener('change', (e) => {
@@ -167,6 +251,7 @@ document.addEventListener('touchstart', (e) => {
   const t = e.touches[0]; _touchX = t.clientX; _touchY = t.clientY;
 }, { passive: true });
 document.addEventListener('touchmove', (e) => {
+  if (e.touches && e.touches.length >= 2) return;            // 双指放缩交给时间轴处理，整页不拦截
   if (e.target.closest && e.target.closest('input, textarea')) return;
   const t = e.touches[0];
   const dx = Math.abs(t.clientX - _touchX), dy = Math.abs(t.clientY - _touchY);
@@ -219,6 +304,7 @@ function layout() {
   maskR.style.width = (contentWidth() - xe) + 'px';
   selBand.style.left = xs + 'px';
   selBand.style.width = (xe - xs) + 'px';
+  applyPan();
 }
 
 // ===== 胶片条（真实抽帧缩略图，0.5s/帧，无缝平铺，滚动按需抽帧）=====
@@ -296,10 +382,12 @@ function buildStrip() {
   for (let i = 0; i < N; i++) {
     const cell = document.createElement('div');
     cell.className = 'cell';
+    cell.style.flex = '0 0 ' + (pps * FRAME) + 'px';   // 每格 = 一帧宽，随放缩同步变宽
     cell.dataset.t = ((i + 0.5) / N * duration).toFixed(3);   // 取该格中心时刻抽帧
     strip.appendChild(cell);
   }
   strip.style.width = Math.max(contentWidth(), timeline.clientWidth) + 'px';
+  applyZoom();
   buildRuler();                 // 顶部秒刻度尺：0001 0002 0003…
   if (stripObserver) stripObserver.disconnect();
   stripObserver = new IntersectionObserver((entries) => {
@@ -312,17 +400,45 @@ function buildStrip() {
 
 // 顶部秒刻度尺：整秒处标 0001 / 0002 / 0003…（长视频每 5s 标一个，避免拥挤）
 function buildRuler() {
+  if (!duration) return;
+  // 去重：pps/viewStart/fps/视口宽度都没变就不重绘（拖动/缩放手势里频繁调用）
+  const key = pps + '|' + viewStart + '|' + fps + '|' + (timeline.clientWidth | 0);
+  if (key === _rulerKey) return;
+  _rulerKey = key;
+
+  const tw = timeline.clientWidth || window.innerWidth;
+  const t0 = viewStart, t1 = viewStart + tw / pps;   // 仅渲染视口可见的时间窗
+  ruler.style.width = contentWidth() + 'px';
   ruler.innerHTML = '';
-  ruler.style.width = Math.max(contentWidth(), timeline.clientWidth) + 'px';
-  const step = duration > 600 ? 5 : 1;
-  for (let s = 0; s <= duration + 0.001; s += step) {
-    const t = document.createElement('div');
-    t.className = 'tick';
-    t.style.left = (s * PPS) + 'px';
-    // 首个刻度(0s)左对齐，避免被时间轴左边缘裁掉成“00”
-    if (s < step / 2) t.style.transform = 'none';
-    t.innerHTML = '<span class="lab">' + String(Math.floor(s)).padStart(4, '0') + '</span>';
-    ruler.appendChild(t);
+
+  // —— 主刻度：每秒一个（放大时），缩小自动变 5s/10s/分钟级，标签 0000/0001… 居中带圆点 ——
+  const majorStep = niceStepSeconds(64 / pps);
+  for (let s = Math.floor(t0 / majorStep) * majorStep; s <= t1 + majorStep; s += majorStep) {
+    if (s < -1e-6) continue;
+    const tk = document.createElement('div');
+    tk.className = 'tick maj';
+    const x = timeToX(s);
+    tk.style.left = x + 'px';
+    if (x < 12) tk.style.transform = 'none';   // 最左侧主刻度不被 overflow:hidden 裁掉
+    tk.innerHTML = '<span class="lab">' + String(Math.max(0, Math.floor(s))).padStart(4, '0') + '</span><span class="dot"></span>';
+    ruler.appendChild(tk);
+  }
+
+  // —— 帧刻度：放得够大才出现；每 5 帧标一次 5f/10f/15f/20f… ——
+  const framePx = pps / fps;
+  if (framePx >= 5) {
+    const g0 = Math.floor(t0 * fps), g1 = Math.ceil(t1 * fps), ifps = Math.max(1, Math.round(fps));
+    for (let gf = g0; gf <= g1; gf++) {
+      const t = gf / fps;
+      if (t < t0 - 1e-6 || t > t1 + 1e-6) continue;
+      const inSec = ((gf % ifps) + ifps) % ifps;
+      if (inSec === 0) continue;                 // 整秒已作主刻度
+      const tk = document.createElement('div');
+      tk.className = 'tick frm';
+      tk.style.left = timeToX(t) + 'px';
+      tk.innerHTML = (framePx >= 7 && inSec % 5 === 0) ? '<span class="lab">' + inSec + 'f</span>' : '<span class="mark"></span>';
+      ruler.appendChild(tk);
+    }
   }
 }
 
@@ -351,31 +467,72 @@ function updateReadout() {
   tEnd.textContent = fmt(sel.end);
 }
 
-// ===== 播放头拖动（scrub 预览）：拖进度条 / 刻度尺(0001,0002…) = 预览该帧 =====
-let draggingPlay = false;
+// ===== 统一时间轴交互：整条底部 = 一个同步层 =====
+// 拖动任意位置：抓住的那一帧始终贴着手指，胶片条随之平移（拖 = 平移 + 拖动进度，同一层）。
+// 双指放缩：以两指中点为焦点持续缩放，松手保持（不回弹）。
+let draggingPlay = false, draggingPan = false, panGrabbedT = 0, panRectLeft = 0;
 function movePlayhead(e) {
   const rect = track.getBoundingClientRect();
   playT = xToTime(e.clientX - rect.left);
   preview.currentTime = playT;
   layout();
 }
-// 进度条与刻度尺都绑定 scrub（刻度尺之前是平移区、导致“拖动范围太小/只能拖选框”）
-function bindScrub(el) {
-  el.addEventListener('pointerdown', (e) => {
-    if (stage.classList.contains('empty')) return;
-    if (e.target.closest('.handle')) return;       // 让手柄自己处理
-    if (e.target.closest('.sel-band')) return;     // 让选段矩形自己处理
-    e.preventDefault();                            // 阻止文本选择/原生拖拽抢走手势
-    draggingPlay = true;
-    preview.pause();                               // 拖动先暂停，避免“一点就从头播”
-    try { el.setPointerCapture(e.pointerId); } catch (_) {}
-    movePlayhead(e);
-  });
-  el.addEventListener('pointermove', (e) => { if (draggingPlay) movePlayhead(e); });
-  el.addEventListener('pointerup', (e) => { draggingPlay = false; try { el.releasePointerCapture(e.pointerId); } catch (_) {} });
-  el.addEventListener('pointercancel', () => { draggingPlay = false; });
+function onTimelineDown(e) {
+  if (stage.classList.contains('empty')) return;
+  if (e.target.closest('.handle')) return;        // 手柄自己处理
+  if (e.target.closest('.sel-band')) return;      // 选段矩形自己处理
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  e.preventDefault();
+  draggingPan = true; draggingPlay = true;
+  preview.pause();
+  try { timeline.setPointerCapture(e.pointerId); } catch (_) {}
+  panRectLeft = timeline.getBoundingClientRect().left;
+  panGrabbedT = viewStart + (e.clientX - panRectLeft) / pps;   // 抓住的这一帧
+  preview.currentTime = panGrabbedT;
+  movePan(e);
 }
-bindScrub(track);
+function movePan(e) {
+  if (!draggingPan) return;
+  const localX = e.clientX - panRectLeft;
+  // 抓住的帧始终贴着手指：视口左缘随之平移，进度(playhead)保持在该帧
+  viewStart = clampView(panGrabbedT - localX / pps);
+  playT = Math.min(duration, Math.max(0, panGrabbedT));
+  preview.currentTime = playT;
+  applyPan(); layout();
+}
+function upPan(e) { draggingPan = false; draggingPlay = false; try { timeline.releasePointerCapture(e.pointerId); } catch (_) {} }
+timeline.addEventListener('pointerdown', onTimelineDown);
+timeline.addEventListener('pointermove', movePan);
+timeline.addEventListener('pointerup', upPan);
+timeline.addEventListener('pointercancel', upPan);
+
+// 双指放缩（移动端）：焦点帧保持原位，持续缩放
+let pinch = null;
+timeline.addEventListener('touchstart', (e) => {
+  if (e.touches.length === 2) {
+    draggingPan = false; draggingPlay = false;
+    const [a, b] = e.touches;
+    const midX = (a.clientX + b.clientX) / 2;
+    const tl = timeline.getBoundingClientRect().left;
+    pinch = { dist: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY),
+              startPps: pps,
+              focalT: viewStart + (midX - tl) / pps };
+  }
+}, { passive: false });
+timeline.addEventListener('touchmove', (e) => {
+  if (e.touches.length === 2 && pinch) {
+    e.preventDefault();
+    const [a, b] = e.touches;
+    const dist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+    const midX = (a.clientX + b.clientX) / 2;
+    const tl = timeline.getBoundingClientRect().left;
+    const np = Math.min(maxPps(), Math.max(minPps(), pinch.startPps * (dist / pinch.dist)));
+    viewStart = clampView(pinch.focalT - (midX - tl) / np);
+    pps = np; applyPan(); applyZoom(); layout();
+  }
+}, { passive: false });
+timeline.addEventListener('touchend', (e) => { if (e.touches.length < 2) pinch = null; });
+timeline.addEventListener('touchcancel', () => { pinch = null; });
 
 // ===== 双滑块选段 =====
 function bindHandle(el, which) {
@@ -457,10 +614,9 @@ document.addEventListener('keydown', (e) => {
   } else preview.pause();
 });
 
-// ===== 帧步进 =====
-function fps() { return (videoW && videoH) ? 30 : 30; } // 近似
-btnStepB.addEventListener('click', () => { playT = Math.max(0, playT - 1 / fps()); preview.currentTime = playT; layout(); });
-btnStepF.addEventListener('click', () => { playT = Math.min(duration, playT + 1 / fps()); preview.currentTime = playT; layout(); });
+// ===== 帧步进（按探测到的真实帧率）=====
+btnStepB.addEventListener('click', () => { playT = Math.max(0, playT - 1 / fps); preview.currentTime = playT; layout(); });
+btnStepF.addEventListener('click', () => { playT = Math.min(duration, playT + 1 / fps); preview.currentTime = playT; layout(); });
 
 // 选段预设：从当前「起点」取固定长度（起点可由左滑块拖到任意位置）
 function applyPreset(sec) {

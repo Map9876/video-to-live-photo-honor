@@ -99,28 +99,29 @@ body {
 
 /* ===== 时间轴：横向胶片条（真实抽帧缩略图，0.5s/帧，可左右滑动）===== */
 .timeline {
-  width: 100%; overflow-x: auto; overflow-y: hidden; user-select: none;
-  -webkit-overflow-scrolling: touch; scrollbar-width: thin; touch-action: none;
+  width: 100%; overflow: hidden; user-select: none;   /* 平移由 JS 用 transform 驱动，禁用原生滚动避免双重偏移 */
+  -webkit-overflow-scrolling: touch; touch-action: none;
   flex: 0 0 auto;   /* 禁止被纵向 flex 压缩（否则内容超高时时间轴被挤成 0 高度而消失） */
 }
 .timeline::-webkit-scrollbar { height: 6px; }
 .timeline::-webkit-scrollbar-thumb { background: rgba(0,0,0,.18); border-radius: 3px; }
-.timeline-inner { position: relative; height: calc(var(--strip-h) + 18px); min-width: 100%; }
+.timeline-inner { position: relative; height: calc(var(--strip-h) + 24px); min-width: 100%; will-change: transform; }
 
-/* 顶部秒刻度尺：0001 0002 0003…（每整秒一格，pointer-events:none 不挡拖动） */
+/* 顶部刻度尺：主刻度=整秒 0000/0001…（带中心圆点），放大后出现 5f/10f/15f… 帧刻度 */
 .ruler {
-  position: absolute; top: 0; left: 0; height: 18px; z-index: 2;
+  position: absolute; top: 0; left: 0; height: 24px; z-index: 2;
   pointer-events: none; cursor: default;
 }
-.tick { position: absolute; top: 0; transform: translateX(-50%); text-align: center; }
-.tick .lab {
-  font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; line-height: 18px;
-  white-space: nowrap;
-}
+.tick { position: absolute; top: 0; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; }
+.tick .lab { font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; line-height: 13px; white-space: nowrap; }
+.tick .mark { width: 1px; height: 4px; background: rgba(0,0,0,.18); margin-top: 1px; }
+.tick.maj .lab { font-size: 11px; font-weight: 700; color: var(--text); }
+.tick.maj .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-top: 1px; }   /* 中心圆点=精确位置 */
+.tick.frm .lab { font-size: 9px; color: var(--muted); opacity: .85; }
 
 /* 胶片条：N 个缩略图格无缝平铺，填满整个时间轴宽度；整条两端圆角 */
 .strip {
-  position: absolute; left: 0; right: 0; top: 18px; bottom: 0; z-index: 1;
+  position: absolute; left: 0; right: 0; top: 24px; bottom: 0; z-index: 1;
   display: flex; border-radius: 10px; overflow: hidden;
   background: var(--panel-2);   /* 未抽帧前的浅灰占位（非黑条） */
   pointer-events: none;     /* 纯视觉，拖动由上方 #track 叠加层接管 */
@@ -140,7 +141,7 @@ body {
 /* 选段/播放头叠加层（透明，覆盖在胶片条之上，承接拖动手势） */
 .track {
   /* 从刻度尺下沿开始：遮罩/选段/手柄/播放头都不再盖住顶部秒刻度，刻度背景干净易读 */
-  position: absolute; left: 0; right: 0; top: 18px; bottom: 0; z-index: 2;
+  position: absolute; left: 0; right: 0; top: 24px; bottom: 0; z-index: 2;
   cursor: pointer; touch-action: none; user-select: none;
 }
 .mask { position: absolute; top: 0; bottom: 0; background: rgba(0,0,0,0.5); pointer-events: none; }
