@@ -22,6 +22,8 @@ const hint = $('hint');
 const btnPlay = $('play'), btnStepB = $('stepB'), btnStepF = $('stepF');
 const btnSetCover = $('setCover'), btnExport = $('export');
 const p3 = $('p3'), p5 = $('p5'), p10 = $('p10'), pAll = $('pAll');
+const presetsBtn = $('presetsBtn'), presetsPop = $('presets');
+const dragHint = $('dragHint');
 const tStart = $('tStart'), tEnd = $('tEnd'), tDur = $('tDur');
 const rePick = $('rePick'), workspace = $('workspace'), placeholder = $('placeholder');
 const loading = $('loading'), loadingText = $('loadingText');
@@ -182,7 +184,7 @@ function loadFile(f) {
   preview.src = url;
   dbSave(f).catch(() => {});               // 本地持久化：刷新后仍能恢复视频
   stage.classList.remove('empty');
-  [btnPlay, btnStepB, btnStepF, btnSetCover, btnExport, p3, p5, p10, pAll].forEach(b => b.disabled = true);
+  [btnPlay, btnStepB, btnStepF, btnSetCover, btnExport, p3, p5, p10, pAll, presetsBtn].forEach(b => b.disabled = true);
   showLoading('读取视频中…');
   preview.addEventListener('loadedmetadata', () => {
     duration = preview.duration;
@@ -194,7 +196,7 @@ function loadFile(f) {
     updateReadout();
     buildStrip();                 // 胶片条：先铺占位格
     layout();
-    [btnPlay, btnStepB, btnStepF, btnSetCover, btnExport, p3, p5, p10, pAll].forEach(b => b.disabled = false);
+    [btnPlay, btnStepB, btnStepF, btnSetCover, btnExport, p3, p5, p10, pAll, presetsBtn].forEach(b => b.disabled = false);
     showLoading('生成胶片条…');
     preview.pause();              // 抽帧期间暂停主预览，避免与主预览抢解码资源导致抽帧卡死
     prefetchVisible();            // 先抽最靠近视口的格，开局不黑
@@ -266,17 +268,34 @@ dlClose.addEventListener('click', () => { dlWrap.hidden = true; });
 dlWrap.addEventListener('click', (e) => { if (e.target === dlWrap) dlWrap.hidden = true; });
 
 // 全分辨率抽封面帧（不缩放，避免导出封面模糊）
+// 抽封面帧：必须先等视频就绪、seek 后再等“真实呈现帧”才画——否则首次导出时
+// seeker 尚未解码，会画出空白/损坏 JPEG，导致相册报“图片已损坏”（第二次才正常）。
 function grabCover(v, t) {
-  return new Promise((resolve) => {
-    const done = () => {
+  return new Promise((resolve, reject) => {
+    const ensureReady = () => new Promise((res, rej) => {
+      if (v.readyState >= 1) return res();
+      if (!v.src) return rej(new Error('封面视频无 src'));
+      v.addEventListener('loadeddata', () => res(), { once: true });
+      v.addEventListener('error', () => rej(new Error('封面视频加载失败')), { once: true });
+    });
+    const waitFrame = () => new Promise((res) => {
+      if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(() => res());
+      else requestAnimationFrame(() => requestAnimationFrame(res));   // 退回：两帧保呈现
+    });
+    const draw = () => {
       const vw = v.videoWidth, vh = v.videoHeight;
+      if (!vw || !vh) { requestAnimationFrame(() => waitFrame().then(draw).catch(reject)); return; }
       const c = document.createElement('canvas');
       c.width = vw; c.height = vh;
       c.getContext('2d').drawImage(v, 0, 0, vw, vh);
       resolve(c.toDataURL('image/jpeg', 0.92));
     };
-    if (Math.abs(v.currentTime - t) < 1e-3) requestAnimationFrame(done);
-    else { v.onseeked = done; v.currentTime = Math.min(t, duration - 0.001); }
+    ensureReady().then(() => {
+      const target = Math.min(t, Math.max(0, (v.duration || t) - 0.001));
+      if (Math.abs(v.currentTime - target) < 1e-3) { waitFrame().then(draw); return; }
+      v.onseeked = () => waitFrame().then(draw);
+      v.currentTime = target;
+    }).catch(reject);
   });
 }
 
@@ -492,6 +511,7 @@ function onTimelineDown(e) {
   if (e.target.closest('.handle')) return;        // 手柄自己处理
   if (e.target.closest('.sel-band')) return;      // 选段矩形自己处理
   if (e.pointerType === 'mouse' && e.button !== 0) return;
+  if (dragHint) dragHint.hidden = true;        // 首次拖动后隐藏背景提示
   e.preventDefault();
   draggingPan = true; draggingPlay = true;
   preview.pause();
@@ -651,6 +671,15 @@ p3.addEventListener('click', () => applyPreset(3));
 p5.addEventListener('click', () => applyPreset(5));
 p10.addEventListener('click', () => applyPreset(10));
 pAll.addEventListener('click', () => { sel.end = duration; updateReadout(); layout(); });
+
+// “时长”弹层：点击展开/收起预设，选完或点外部自动收起（收起控件让视频更大）
+presetsBtn.addEventListener('click', (e) => { e.stopPropagation(); presetsPop.hidden = !presetsPop.hidden; });
+[p3, p5, p10, pAll].forEach(b => b.addEventListener('click', () => { presetsPop.hidden = true; }));
+document.addEventListener('pointerdown', (e) => {
+  if (presetsPop.hidden) return;
+  if (e.target.closest('.presets-wrap')) return;
+  presetsPop.hidden = true;
+}, true);
 
 // ===== 设封面帧 =====
 btnSetCover.addEventListener('click', () => setCoverAt(playT));

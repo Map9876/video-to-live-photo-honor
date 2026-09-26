@@ -20,16 +20,24 @@
       <div class="preview-wrap" id="previewWrap">
         <video id="preview" playsinline></video>
         <div id="coverBadge" class="cover-badge" hidden></div>
+        <div class="drag-hint" id="dragHint">
+          <div class="dh-badge"><div class="dh-ic">↔</div><div>整屏任意位置可拖动胶片条<br>双指缩放</div></div>
+        </div>
       </div>
 
       <div class="ctrls" id="ctrls">
         <button id="play" class="ctrl" disabled>▶ 播放</button>
         <button id="stepB" class="ctrl ghost" disabled>后退一帧</button>
         <button id="stepF" class="ctrl ghost" disabled>前进一帧</button>
-        <button id="p3" class="ctrl ghost" disabled>3秒</button>
-        <button id="p5" class="ctrl ghost" disabled>5秒</button>
-        <button id="p10" class="ctrl ghost" disabled>10秒</button>
-        <button id="pAll" class="ctrl ghost" disabled>整段</button>
+        <div class="presets-wrap">
+          <button id="presetsBtn" class="ctrl ghost" disabled>时长 ▾</button>
+          <div id="presets" class="presets-pop" hidden>
+            <button id="p3" class="ctrl ghost" disabled>3秒</button>
+            <button id="p5" class="ctrl ghost" disabled>5秒</button>
+            <button id="p10" class="ctrl ghost" disabled>10秒</button>
+            <button id="pAll" class="ctrl ghost" disabled>整段</button>
+          </div>
+        </div>
         <button id="setCover" class="ctrl" disabled>设封面</button>
         <button id="export" class="ctrl primary" disabled>导出</button>
         <button id="rePick" class="ctrl ghost">换视频</button>
