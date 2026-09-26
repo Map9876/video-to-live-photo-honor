@@ -36,8 +36,30 @@ const dlWrap = $('dlWrap'), dlLink = $('dlLink'), dlMsg = $('dlMsg'), dlClose = 
 
 const BASE_PPS = CELL / FRAME;   // 56px / 0.5s = 112 px/秒（基础缩放）；胶片条每格 = 0.5s，与 CSS --cell 对齐
 
-// 地址栏遮挡问题已交给 CSS 的 `height: 100svh` 处理（安卓 Chrome 推送模式下 svh 已把地址栏高度排除，
-// body 直接从地址栏下方开始，无需 JS 预留，也不会被遮挡）。此处不再用 visualViewport 动态撑高头标。
+// 顶部地址栏预留：手机端给 body 加 padding-top，把整块内容（头标+视频）推到地址栏下方。
+// 推送模式(offsetTop>0)且浏览器支持 dvh → dvh 已把地址栏排除，无需预留；
+// 老浏览器推送模式 → 用 offsetTop 真实高度预留；覆盖模式(offsetTop=0,svh 也感知不到) → 兜底 80px。
+(function reserveTop() {
+  const hasDvh = !!(window.CSS && CSS.supports && CSS.supports('height', '100dvh'));
+  const apply = () => {
+    const mq = window.matchMedia('(max-width: 767px)');
+    let top = 0;
+    if (mq.matches) {
+      const vv = window.visualViewport;
+      const ot = vv ? vv.offsetTop : 0;
+      if (ot > 1) top = hasDvh ? 0 : ot;   // 推送模式：有 dvh 不预留，否则用真实高度
+      else top = 80;                        // 覆盖模式：兜底，保证视频退到地址栏下方
+    }
+    document.body.style.paddingTop = top + 'px';
+    if (typeof fitPreview === 'function') fitPreview();
+  };
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', apply);
+  window.addEventListener('resize', apply);
+  window.addEventListener('orientationchange', apply);
+  apply();
+  requestAnimationFrame(apply);
+  setTimeout(apply, 250);
+})();
 let pps = BASE_PPS;              // 当前像素/秒（双指放缩会改变）
 let viewStart = 0;              // 视口左边缘对应的时间(秒)；拖动/放缩都围绕它
 
@@ -331,7 +353,7 @@ function grabCover(v, t) {
 function fitPreview() {
   if (!videoW || !videoH) return;
   const availW = Math.max(120, (workspace.clientWidth || window.innerWidth) - 24);
-  const availH = Math.max(120, Math.round(window.innerHeight * 0.52));
+  const availH = Math.max(120, Math.round((workspace.clientHeight || window.innerHeight * 0.52) * 0.92));
   const s = Math.min(availW / videoW, availH / videoH);
   previewWrap.style.width = Math.round(videoW * s) + 'px';
   previewWrap.style.height = Math.round(videoH * s) + 'px';

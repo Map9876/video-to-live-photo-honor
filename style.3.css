@@ -25,10 +25,8 @@ body {
   background: var(--bg); color: var(--text);
   font: 14px/1.4 -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
   display: flex; flex-direction: column;
-  /* 用 svh(小视口=地址栏已收起/显示时的可见高度)，安卓 Chrome 推送模式下地址栏会把布局视口压短，
-     svh 已把地址栏高度排除在外，body 从地址栏下方开始，无需 JS 预留、也不会被遮挡。
-     前缀回退：100vh 用于不支持 svh 的旧浏览器。 */
-  height: 100vh; height: 100svh; overflow: hidden;
+  /* 高度用 dvh(动态视口)；顶部地址栏高度由 JS 预留 padding-top（overlay 模式 svh 无法感知，故 JS 兜底）。 */
+  height: 100vh; height: 100dvh; overflow: hidden; box-sizing: border-box;
   -webkit-user-select: none; user-select: none;
 }
 
@@ -57,7 +55,7 @@ body.fs .app-header { display: none; }   /* 全屏模式不显示头标，视频
 /* 已加载：工作区 */
 .workspace {
   position: relative;   /* 中心白轴的定位容器：从视频顶延伸到工作区底，不窜到视频上方空白 */
-  flex: 1; display: none; flex-direction: column; align-items: center; justify-content: center;
+  flex: 1; display: none; flex-direction: column; align-items: center; justify-content: flex-start;
   gap: 12px; padding: 12px; overflow-y: auto; touch-action: pan-y; min-height: 0; width: 100%;
 }
 .stage:not(.empty) .workspace { display: flex; }
