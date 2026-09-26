@@ -915,17 +915,29 @@ btnExport.addEventListener('click', async () => {
     try { await v.play(); } catch (_) {}
     await new Promise((resolve) => {
       let stopped = false;
-      const finish = () => {
+      const finish = (done) => {
         if (stopped) return; stopped = true;
+        clearTimeout(stallTimer); clearTimeout(hardTimer);
         try { v.pause(); v.removeAttribute('src'); v.load(); v.remove(); } catch (_) {}
+        if (done) { if (exBar) exBar.style.width = '100%'; if (exPct) exPct.textContent = '100%'; }
         resolve();
       };
       let lastTs = -1;
       let firstMt = null;   // 以“实际捕获到的第一帧”为基准，保证首帧时间戳=0（避免 seek 竞态导致首帧非0）
+      let stallTimer = 0, hardTimer = 0;
+      const armStall = () => { clearTimeout(stallTimer); stallTimer = setTimeout(nudge, 1500); };
+      const nudge = () => {
+        if (stopped) return;
+        // 已到结尾或帧数足够 → 结束；否则强制往前 seek 一帧逼出下一帧呈现（触发 rVFC），被暂停则恢复播放
+        if (v.ended || v.currentTime >= end - 1e-3 || encoded >= totalFrames) { finish(true); return; }
+        if (v.paused) { try { v.play(); } catch (_) {} }
+        try { v.currentTime = Math.min(end - 1e-3, v.currentTime + 1 / fps); } catch (_) {}
+        armStall();
+      };
       const onRvfc = (now, meta) => {
-        if (encodeError) { finish(); return; }
+        if (encodeError) { finish(false); return; }
         const ct = v.currentTime;
-        if (ct >= end || v.ended) { finish(); return; }
+        if (ct >= end || v.ended) { finish(true); return; }
         try {
           cx.drawImage(v, 0, 0, cv.width, cv.height);
           // 用帧的真实呈现时间(mediaTime)算 PTS —— 与源帧率解耦，避免导出播放速度失真(加速/变慢)
@@ -944,9 +956,11 @@ btnExport.addEventListener('click', async () => {
           if (exText) exText.textContent = '编码中 ' + encoded + '/' + totalFrames + ' 帧';
         } catch (e) { console.warn('帧编码异常', e); }
         v.requestVideoFrameCallback(onRvfc);
+        armStall();   // 每次正常抓帧都重置卡顿看门狗
       };
       v.requestVideoFrameCallback(onRvfc);
-      setTimeout(finish, 60000);   // 兜底超时
+      armStall();
+      hardTimer = setTimeout(() => finish(true), 60000);   // 终极兜底
     });
     if (encodeError) throw encodeError;
     exText.textContent = '编码完成，封装中…';
