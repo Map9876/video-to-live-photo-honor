@@ -921,11 +921,11 @@ btnExport.addEventListener('click', async () => {
     const { Muxer, ArrayBufferTarget } = await import('./vendor/mp4-muxer.mjs');
 
     const w = videoW - (videoW % 2), h = videoH - (videoH % 2);
-    const fps = 30;
+    const efps = Math.max(1, Math.round(fps) || 30);   // 用探测到的源帧率；导出帧率跟着源走，保证播放速度/流畅度
     const bitrate = Math.min(8_000_000, Math.max(2_000_000, Math.round((w * h * 0.08))));
     let codec = 'avc1.42001f';            // 先试 baseline 3.1
-    let sup = await VideoEncoder.isConfigSupported({ codec, width: w, height: h, bitrate, framerate: fps });
-    if (!sup.supported) { codec = 'avc1.4d0028'; sup = await VideoEncoder.isConfigSupported({ codec, width: w, height: h, bitrate, framerate: fps }); }
+    let sup = await VideoEncoder.isConfigSupported({ codec, width: w, height: h, bitrate, framerate: efps });
+    if (!sup.supported) { codec = 'avc1.4d0028'; sup = await VideoEncoder.isConfigSupported({ codec, width: w, height: h, bitrate, framerate: efps }); }
     if (!sup.supported) throw new Error('浏览器不支持 H.264 编码（' + codec + '）');
 
     const muxer = new Muxer({
@@ -939,7 +939,7 @@ btnExport.addEventListener('click', async () => {
       output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
       error: (e) => { encodeError = e; console.error('VideoEncoder 出错：', e); },
     });
-    encoder.configure({ codec, width: w, height: h, bitrate, framerate: fps });
+    encoder.configure({ codec, width: w, height: h, bitrate, framerate: efps });
 
     // 隐藏视频：挂到 DOM 并真实渲染（opacity:0.01 而非 0，确保浏览器持续呈现帧，
     // requestVideoFrameCallback 才会触发）。全分辨率 canvas 抓帧编码。
@@ -963,57 +963,51 @@ btnExport.addEventListener('click', async () => {
       v.addEventListener('seeked', onSeeked);
       setTimeout(() => { v.removeEventListener('seeked', onSeeked); rej(new Error('定位选段起点超时')); }, 8000);
     });
-    const totalFrames = Math.max(1, Math.ceil((end - start) * fps));
+    const totalFrames = Math.max(1, Math.round((end - start) * efps));
     exText.textContent = '编码准备就绪，开始编码…';
-    try { await v.play(); } catch (_) {}
+
+    // 逐帧精确抽帧：不再依赖“实时播放 + rVFC”——浏览器会对非可见视频节流 rVFC，
+    // 导致只抓到部分帧、PTS 因看门狗 seek 跳变 → 导出卡顿/帧数低。
+    // 改为对每一帧 seek 到精确时刻、等其绘制后抓图，时间戳严格均匀(i/efps) → 播放丝滑。
+    const seekTo = (t) => new Promise((res) => {
+      let done = false;
+      const onS = () => { if (done) return; done = true; v.removeEventListener('seeked', onS); res(); };
+      v.addEventListener('seeked', onS);
+      try { v.currentTime = t; } catch (_) {}
+      setTimeout(onS, 2000);   // seek 超时兜底（关键帧稀疏的视频可能卡）
+    });
+    const frameDur = 1 / efps;
     await new Promise((resolve) => {
-      let stopped = false;
+      let stopped = false, i = 0;
       const finish = (done) => {
         if (stopped) return; stopped = true;
-        clearTimeout(stallTimer); clearTimeout(hardTimer);
         try { v.pause(); v.removeAttribute('src'); v.load(); v.remove(); } catch (_) {}
         if (done) { if (exBar) exBar.style.width = '100%'; if (exPct) exPct.textContent = '100%'; }
         resolve();
       };
-      let lastTs = -1;
-      let firstMt = null;   // 以“实际捕获到的第一帧”为基准，保证首帧时间戳=0（避免 seek 竞态导致首帧非0）
-      let stallTimer = 0, hardTimer = 0;
-      const armStall = () => { clearTimeout(stallTimer); stallTimer = setTimeout(nudge, 1500); };
-      const nudge = () => {
+      const step = async () => {
         if (stopped) return;
-        // 已到结尾或帧数足够 → 结束；否则强制往前 seek 一帧逼出下一帧呈现（触发 rVFC），被暂停则恢复播放
-        if (v.ended || v.currentTime >= end - 1e-3 || encoded >= totalFrames) { finish(true); return; }
-        if (v.paused) { try { v.play(); } catch (_) {} }
-        try { v.currentTime = Math.min(end - 1e-3, v.currentTime + 1 / fps); } catch (_) {}
-        armStall();
-      };
-      const onRvfc = (now, meta) => {
         if (encodeError) { finish(false); return; }
-        const ct = v.currentTime;
-        if (ct >= end || v.ended) { finish(true); return; }
-        try {
-          cx.drawImage(v, 0, 0, cv.width, cv.height);
-          // 用帧的真实呈现时间(mediaTime)算 PTS —— 与源帧率解耦，避免导出播放速度失真(加速/变慢)
-          const mt = (meta && typeof meta.mediaTime === 'number') ? meta.mediaTime : ct;
-          if (firstMt === null) firstMt = mt;
-          let ts = Math.round((mt - firstMt) * 1e6);
-          if (ts <= lastTs) ts = lastTs + 1;   // 保证单调递增
-          lastTs = ts;
-          const frame = new VideoFrame(cv, { timestamp: ts });
-          encoder.encode(frame, { keyFrame: encoded % (2 * fps) === 0 });
-          frame.close();
-          encoded++;
-          const pct = Math.min(100, Math.round((encoded / totalFrames) * 100));
-          if (exBar) exBar.style.width = pct + '%';
-          if (exPct) exPct.textContent = pct + '%';
-          if (exText) exText.textContent = '编码中 ' + encoded + '/' + totalFrames + ' 帧';
-        } catch (e) { console.warn('帧编码异常', e); }
-        v.requestVideoFrameCallback(onRvfc);
-        armStall();   // 每次正常抓帧都重置卡顿看门狗
+        if (i >= totalFrames) { finish(true); return; }
+        const t = Math.min(end - 1e-3, start + i * frameDur);
+        await seekTo(t);
+        if (stopped) return;
+        await new Promise((r) => requestAnimationFrame(r));   // 等该帧绘制完成再抓，避免空白帧
+        if (stopped) return;
+        try { cx.drawImage(v, 0, 0, cv.width, cv.height); } catch (e) { console.warn('drawImage 失败', e); }
+        const ts = Math.round(i * 1e6 / efps);                 // 严格均匀时间戳 → 播放丝滑
+        const frame = new VideoFrame(cv, { timestamp: ts });
+        encoder.encode(frame, { keyFrame: i % (2 * Math.round(efps)) === 0 });
+        frame.close();
+        encoded = ++i;
+        const pct = Math.min(100, Math.round((i / totalFrames) * 100));
+        if (exBar) exBar.style.width = pct + '%';
+        if (exPct) exPct.textContent = pct + '%';
+        if (exText) exText.textContent = '编码中 ' + i + '/' + totalFrames + ' 帧';
+        setTimeout(step, 0);   // 让出事件循环，使编码器 output(muxer) 及时排空，避免背压丢帧
       };
-      v.requestVideoFrameCallback(onRvfc);
-      armStall();
-      hardTimer = setTimeout(() => finish(true), 60000);   // 终极兜底
+      step();
+      setTimeout(() => finish(true), 90000);   // 终极兜底（逐帧较慢，放宽到 90s）
     });
     if (encodeError) throw encodeError;
     exText.textContent = '编码完成，封装中…';
