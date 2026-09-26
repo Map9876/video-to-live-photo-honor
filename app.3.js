@@ -538,6 +538,37 @@ preview.addEventListener('seeked', () => {
   if (_scrubTarget !== null && Math.abs(preview.currentTime - _scrubTarget) > 1e-3) preview.currentTime = _scrubTarget;
   else { _scrubBusy = false; _scrubTarget = null; }
 });
+
+// ===== 拖动/全屏拖动实时帧：用 canvas + requestVideoFrameCallback 把“已呈现的每一帧”画出来 =====
+// 关键：视频元素原生 seek 后只在 seeked 才刷新画面，快速拖动会丢帧、停下才出图。
+// 改为把每个被呈现的帧（含 seek 过程中的中间帧）实时画到 canvas 叠层，做到高帧率实时预览。
+const previewCanvas = $('previewCanvas'), pctx = previewCanvas.getContext('2d');
+let _rvfc = 0, _rvfcKind = '';
+function drawPreviewCanvas() {
+  const vw = preview.videoWidth, vh = preview.videoHeight;
+  if (!vw || !vh) return;
+  if (previewCanvas.width !== vw) { previewCanvas.width = vw; previewCanvas.height = vh; }
+  try { pctx.drawImage(preview, 0, 0, vw, vh); } catch (_) {}
+}
+function startScrubRender() {
+  document.body.classList.add('scrubbing');
+  drawPreviewCanvas();
+  if (preview.requestVideoFrameCallback) {
+    const loop = () => { drawPreviewCanvas(); _rvfc = preview.requestVideoFrameCallback(loop); };
+    _rvfcKind = 'rvfc'; _rvfc = preview.requestVideoFrameCallback(loop);
+  } else {
+    const loop = () => { drawPreviewCanvas(); _rvfc = requestAnimationFrame(loop); };
+    _rvfcKind = 'raf'; _rvfc = requestAnimationFrame(loop);
+  }
+}
+function stopScrubRender() {
+  document.body.classList.remove('scrubbing');
+  if (_rvfc) {
+    if (_rvfcKind === 'rvfc' && preview.cancelVideoFrameCallback) preview.cancelVideoFrameCallback(_rvfc);
+    else if (_rvfcKind === 'raf') cancelAnimationFrame(_rvfc);
+    _rvfc = 0; _rvfcKind = '';
+  }
+}
 function onTimelineDown(e) {
   if (stage.classList.contains('empty')) return;
   if (e.target.closest('button, input, a')) return;   // 控件不触发平移（手柄/选段已 stopPropagation）
@@ -550,6 +581,7 @@ function onTimelineDown(e) {
   if (flingRAF) { cancelAnimationFrame(flingRAF); flingRAF = 0; }
   draggingPan = true; draggingPlay = true;
   preview.pause();
+  startScrubRender();
   try { stage.setPointerCapture(e.pointerId); } catch (_) {}
   panLastX = e.clientX; panLastT = performance.now(); panVX = 0;
   showCenterFrame();
@@ -568,7 +600,8 @@ function upPan(e) {
   if (document.body.classList.contains('fs')) { fsScrubEnd(e); return; }
   draggingPan = false; draggingPlay = false;
   try { stage.releasePointerCapture(e.pointerId); } catch (_) {}
-  if (Math.abs(panVX) > 0.04) startFling();      // 松手惯性
+  if (Math.abs(panVX) > 0.04) { startScrubRender(); startFling(); }   // 惯性滑行期间也用 canvas 实时渲染
+  else stopScrubRender();
 }
 function startFling() {
   let last = performance.now();
@@ -579,7 +612,7 @@ function startFling() {
     viewStart = clampView(viewStart - dx / pps);
     showCenterFrame(); applyPan(); layout();
     if (Math.abs(panVX) > 0.02) flingRAF = requestAnimationFrame(step);
-    else flingRAF = 0;
+    else { flingRAF = 0; stopScrubRender(); }
   };
   flingRAF = requestAnimationFrame(step);
 }
@@ -599,7 +632,7 @@ let fsDragging = false, fsStartX = 0, fsStartT = 0;
 function startFsScrub(e) {
   fsDragging = true; fsStartX = e.clientX; fsStartT = playT;
   try { stage.setPointerCapture(e.pointerId); } catch (_) {}
-  preview.pause(); e.preventDefault(); updateFsProgress();
+  preview.pause(); e.preventDefault(); updateFsProgress(); startScrubRender();
 }
 function fsScrubMove(e) {
   if (!fsDragging) return;
@@ -609,7 +642,7 @@ function fsScrubMove(e) {
   scrubTo(playT);                           // 主视频实时跳到该帧
   updateFsProgress();                        // 进度条同步当前位置（实时）
 }
-function fsScrubEnd(e) { fsDragging = false; try { stage.releasePointerCapture(e.pointerId); } catch (_) {} }
+function fsScrubEnd(e) { fsDragging = false; stopScrubRender(); try { stage.releasePointerCapture(e.pointerId); } catch (_) {} }
 // 整屏（含胶片条上方视频区、下方文字区）都可平移 / 缩放胶片条，视为同一同步层
 stage.addEventListener('pointerdown', onTimelineDown);
 stage.addEventListener('pointermove', movePan);

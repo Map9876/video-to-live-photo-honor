@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>LivePhoto 制作</title>
-  <link rel="stylesheet" href="style.3.css?v=10" />
+  <link rel="stylesheet" href="style.3.css?v=11" />
 </head>
 <body>
   <!-- 全屏上传：无标题，点击任意位置选择视频 -->
@@ -19,6 +19,7 @@
       <!-- 视频：占满屏幕宽度，无边框 -->
       <div class="preview-wrap" id="previewWrap">
         <video id="preview" playsinline></video>
+        <canvas class="preview-canvas" id="previewCanvas"></canvas>
         <div id="coverBadge" class="cover-badge" hidden></div>
         <button class="fs-btn" id="fsBtn" aria-label="全屏预览">⛶</button>
         <div class="fs-rect" id="fsRect" hidden><div class="fs-fill" id="fsFill"></div></div>
@@ -109,6 +110,6 @@
 
   <input id="file" type="file" accept="video/*" hidden />
 
-  <script src="app.3.js?v=10"></script>
+  <script src="app.3.js?v=11"></script>
 </body>
 </html>
