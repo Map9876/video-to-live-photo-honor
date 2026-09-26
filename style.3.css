@@ -31,25 +31,8 @@ body {
 }
 
 /* 头标：移动端浮在视频上方（半透明渐变条），不占竖向空间——地址栏/标题都叠加在视频上，不再预留空白条。
-   桌面端恢复为普通顶栏（position:static）。 */
-.app-header {
-  position: absolute; top: 0; left: 0; right: 0; z-index: 9;
-  display: flex; align-items: center;
-  padding: calc(env(safe-area-inset-top, 0px) + 8px) 14px 14px;
-  background: linear-gradient(rgba(0,0,0,.45), rgba(0,0,0,0));
-  pointer-events: none;
-}
-.app-header .ah-title { font-weight: 600; font-size: 15px; color: #fff; line-height: 1; text-shadow: 0 1px 3px rgba(0,0,0,.7); }
-body.fs .app-header { display: none; }   /* 全屏模式不显示头标，视频铺满 */
-@media (min-width: 768px) {
-  .app-header {
-    position: static; pointer-events: auto;
-    background: var(--panel); border-bottom: 1px solid var(--line);
-    padding: 10px 14px;
-  }
-  .app-header .ah-title { color: var(--text); text-shadow: none; }
-  .workspace { padding: 12px; }
-}
+   不再保留浮层头标（会挡住视频），直接隐藏。 */
+.app-header { display: none; }
 
 /* ===== 舞台 ===== */
 .stage { flex: 1; position: relative; display: flex; flex-direction: column; min-height: 0; }
@@ -171,12 +154,17 @@ body.fs { overflow: hidden; background: #000; padding: 0 !important; }   /* 全�
 
 .time-readout {
   font-variant-numeric: tabular-nums; color: var(--muted);
-  font-size: 13px; display: flex; gap: 18px; align-items: baseline;
-  justify-content: center; flex-wrap: wrap; flex: 0 0 auto;
+  font-size: 13px; display: flex; gap: 12px; align-items: center;
+  justify-content: center; flex-wrap: nowrap; flex: 0 0 auto; width: 100%; max-width: 640px;
 }
 .time-readout .tr-item { display: inline-flex; align-items: baseline; gap: 5px; }
-.time-readout .tr-k { color: var(--muted); font-size: 12px; }
-.time-readout .tr-item b { color: var(--text); font-weight: 600; font-size: 15px; }
+/* 视频总时长：用边框盒子包围，便于辨识 */
+.time-readout .tr-dur {
+  border: 1px solid var(--line); background: var(--panel);
+  border-radius: 8px; padding: 4px 11px; gap: 6px;
+}
+.time-readout .tr-k { color: var(--muted); font-size: 12px; flex: 0 0 auto; }
+.time-readout .tr-item b { color: var(--text); font-weight: 700; font-size: 15px; }
 .time-readout .sep { opacity: 0.5; }
 
 /* ===== 时间轴：横向胶片条（真实抽帧缩略图，0.5s/帧，可左右滑动）===== */
@@ -299,13 +287,13 @@ body.fs { overflow: hidden; background: #000; padding: 0 !important; }   /* 全�
 }
 .footer b { color: var(--accent); }
 
-/* ===== 加载指示（不挡视频，仅顶部小药丸）===== */
+/* ===== 加载指示（不挡操作：小药丸，pointer-events:none，深色半透明，不盖出白条）===== */
 .loading {
-  /* 极简加载提示：去掉白底+阴影，避免顶部出现一条像“白色柱子”的浮层 */
-  position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 50;
+  position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 50;
   display: flex; gap: 8px; align-items: center;
-  color: var(--muted); font-size: 13px; pointer-events: none;
-  text-shadow: 0 1px 3px rgba(255,255,255,0.95), 0 0 8px rgba(255,255,255,0.9);
+  color: #fff; font-size: 13px; pointer-events: none;
+  background: rgba(0,0,0,0.55); padding: 6px 13px; border-radius: 999px;
+  box-shadow: 0 2px 10px rgba(0,0,0,.3);
 }
 .loading[hidden] { display: none; }
 
@@ -370,4 +358,10 @@ body.fs { overflow: hidden; background: #000; padding: 0 !important; }   /* 全�
   }
   .ctrl { padding: 7px 6px; font-size: 13px; }
   .ctrl.icon { padding: 8px 8px; }
+  /* 读数保持单行：缩小字号，标签/数字不换行，整行用两端对齐填满，避免溢出视频区 */
+  .time-readout { gap: 8px; font-size: 12px; justify-content: space-between; padding: 0 2px; }
+  .time-readout .tr-k { font-size: 11px; white-space: nowrap; }
+  .time-readout .tr-item b { font-size: 14px; }
+  .time-readout .tr-dur { padding: 3px 8px; }
+  .time-readout .tr-item, .time-readout .tr-k, .time-readout .tr-item b { white-space: nowrap; }
 }

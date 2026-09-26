@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>LivePhoto 制作</title>
-  <link rel="stylesheet" href="style.3.css?v=29" />
+  <link rel="stylesheet" href="style.3.css?v=30" />
 </head>
 <body>
   <!-- 顶部头标：占位把整块内容顶到地址栏下方（地址栏只盖住头标顶，视频不再被遮） -->
@@ -55,8 +55,8 @@
       </div>
 
       <div class="time-readout">
-        <span class="tr-item"><span class="tr-k">视频总时长</span><b id="tDur">00:00</b></span>
-        <span class="tr-item"><span class="tr-k">当前截取</span><b id="tStart">00:00</b><span class="sep">–</span><b id="tEnd">00:00</b></span>
+        <span class="tr-item tr-dur"><span class="tr-k">视频总时长</span><b id="tDur">00:00</b></span>
+        <span class="tr-item tr-sel"><span class="tr-k">当前截取</span><b id="tStart">00:00</b><span class="sep">–</span><b id="tEnd">00:00</b></span>
       </div>
 
       <!-- 时间轴：横向胶片条（真实抽帧缩略图，0.5s/帧，两端圆角，滚动按需抽帧）+ 选段/播放头叠加 -->
@@ -127,6 +127,6 @@
 
   <input id="file" type="file" accept="video/*" hidden />
 
-  <script src="app.3.js?v=29"></script>
+  <script src="app.3.js?v=30"></script>
 </body>
 </html>
