@@ -355,7 +355,10 @@ function grabCover(v, t) {
 function fitPreview() {
   if (!videoW || !videoH) return;
   const availW = Math.max(120, (workspace.clientWidth || window.innerWidth) - 24);
-  const availH = Math.max(120, Math.round((workspace.clientHeight || window.innerHeight * 0.52) * 0.92));
+  // 高度上限：桌面沿用原“约半屏”上限，保证下方时间轴(进度条)始终可见；
+  // 同时不超过工作区高度的 0.92，避免手机端视频比工作区还高导致溢出。
+  const wsH = workspace.clientHeight || (window.innerHeight * 0.52);
+  const availH = Math.max(120, Math.round(Math.min(window.innerHeight * 0.52, wsH * 0.92)));
   const s = Math.min(availW / videoW, availH / videoH);
   previewWrap.style.width = Math.round(videoW * s) + 'px';
   previewWrap.style.height = Math.round(videoH * s) + 'px';
