@@ -708,61 +708,57 @@ stage.addEventListener('wheel', (e) => {
   placeWhiteAxis();
 }, { passive: false });
 
-// ===== 双滑块选段 =====
-function bindHandle(el, which) {
-  el.addEventListener('pointerdown', (e) => {
-    if (stage.classList.contains('empty')) return;
-    e.stopPropagation();
-    el.setPointerCapture(e.pointerId);
-    const rect = track.getBoundingClientRect();
-    const len = sel.end - sel.start;   // 当前选段时长（固定，拖动时不改变）
-    const move = (ev) => {
-      const t = xToTime(ev.clientX - rect.left);
-      // 拖动左/右任一手柄 = 平移整段（保持时长不变），不再拉伸区间
-      let ns = which === 'l' ? t : (t - len);
-      ns = Math.max(0, Math.min(duration - len, ns));
-      sel.start = ns; sel.end = ns + len;
-      playT = sel.start;                 // 播放头跟随选段左缘，避免停在黑遮罩里变成“高亮一段”
-      updateReadout(); layout(); placeWhiteAxis();
-      preview.currentTime = sel.start;   // 拖动选段时实时显示“起始帧”画面
-    };
-    const up = (ev) => {
-      el.removeEventListener('pointermove', move);
-      el.removeEventListener('pointerup', up);
-      try { el.releasePointerCapture(ev.pointerId); } catch (_) {}
-      playSegment();                     // 松手即播放这段
-    };
-    el.addEventListener('pointermove', move);
-    el.addEventListener('pointerup', up);
-  });
-}
-bindHandle(handleL, 'l');
-bindHandle(handleR, 'r');
+// ===== 双滑块选段 + 拖到屏幕边缘自动平移时间轴 =====
+// 拖动选段/手柄时，若指针靠近时间轴左/右边缘，胶片条随之平移，选框可继续跟随指针移动（不再卡死在边边）
+let _selDrag = null;            // { s0, len, tDown, lastX, raf }
+const EDGE = 56, PAN_PX = 14;   // 边缘死区宽度(px) / 每帧平移像素
 
-// 拖动“保留段”矩形本体：整体平移选段（像拖动一个矩形）
-selBand.addEventListener('pointerdown', (e) => {
+function timeAtClientX(cx) {    // 屏幕 x → 时间（实时 viewStart，平移后也准确）
+  const tl = timeline.getBoundingClientRect().left;
+  return viewStart + (cx - tl) / pps;
+}
+function applySelDragMove(clientX) {
+  if (!_selDrag) return;
+  const tNow = timeAtClientX(clientX);
+  const dt = tNow - _selDrag.tDown;
+  let ns = Math.max(0, Math.min(duration - _selDrag.len, _selDrag.s0 + dt));
+  sel.start = ns; sel.end = ns + _selDrag.len;
+  playT = sel.start;            // 播放头跟随选段左缘，避免停在黑遮罩里变成“高亮一段”
+  updateReadout(); layout(); placeWhiteAxis();
+  preview.currentTime = sel.start;   // 拖动时实时显示“起始帧”画面
+}
+function selDragFrame() {
+  if (!_selDrag) return;
+  const tl = timeline.getBoundingClientRect().left;
+  const W = timeline.clientWidth || 0;
+  const px = _selDrag.lastX - tl;
+  let panned = false;
+  if (px > W - EDGE) { const nv = clampView(viewStart + PAN_PX / pps); if (nv !== viewStart) { viewStart = nv; panned = true; } }
+  else if (px < EDGE) { const nv = clampView(viewStart - PAN_PX / pps); if (nv !== viewStart) { viewStart = nv; panned = true; } }
+  if (panned) applySelDragMove(_selDrag.lastX);   // 平移后按指针当前位置重算选段，使选框继续跟随
+  _selDrag.raf = requestAnimationFrame(selDragFrame);
+}
+function beginSelDrag(e, target) {
   if (stage.classList.contains('empty')) return;
   e.stopPropagation();
-  try { selBand.setPointerCapture(e.pointerId); } catch (_) {}
-  const rect = track.getBoundingClientRect();
-  const s0 = sel.start, e0 = sel.end, tDown = xToTime(e.clientX - rect.left);
-  const move = (ev) => {
-    const dt = xToTime(ev.clientX - rect.left) - tDown;
-    let ns = Math.max(0, Math.min(duration - (e0 - s0), s0 + dt));
-    sel.start = ns; sel.end = ns + (e0 - s0);
-    playT = sel.start;                   // 播放头跟随选段左缘
-    updateReadout(); layout(); placeWhiteAxis();
-    preview.currentTime = sel.start;     // 实时显示起始帧
-  };
+  try { target.setPointerCapture(e.pointerId); } catch (_) {}
+  _selDrag = { s0: sel.start, len: sel.end - sel.start, tDown: timeAtClientX(e.clientX), lastX: e.clientX, raf: 0 };
+  _selDrag.raf = requestAnimationFrame(selDragFrame);
+  const move = (ev) => { if (!_selDrag) return; _selDrag.lastX = ev.clientX; applySelDragMove(ev.clientX); };
   const up = (ev) => {
-    selBand.removeEventListener('pointermove', move);
-    selBand.removeEventListener('pointerup', up);
-    try { selBand.releasePointerCapture(ev.pointerId); } catch (_) {}
-    playSegment();
+    target.removeEventListener('pointermove', move);
+    target.removeEventListener('pointerup', up);
+    cancelAnimationFrame(_selDrag.raf); _selDrag = null;
+    try { target.releasePointerCapture(ev.pointerId); } catch (_) {}
+    playSegment();              // 松手即播放这段
   };
-  selBand.addEventListener('pointermove', move);
-  selBand.addEventListener('pointerup', up);
-});
+  target.addEventListener('pointermove', move);
+  target.addEventListener('pointerup', up);
+}
+// 拖动左/右手柄 = 平移整段（保持时长不变）；拖动“保留段”矩形本体 = 整体平移选段
+function bindHandle(el) { el.addEventListener('pointerdown', (e) => beginSelDrag(e, el)); }
+bindHandle(handleL); bindHandle(handleR);
+selBand.addEventListener('pointerdown', (e) => beginSelDrag(e, selBand));
 
 // ===== 播放选段 =====
 function playSegment() {
