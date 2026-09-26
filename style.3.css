@@ -318,3 +318,13 @@ body.fs { overflow: hidden; background: #000; }   /* 全屏时禁止滚动、背
 }
 .dl-card p { margin: 0; font-weight: 600; }
 .dl-card a.ctrl { text-decoration: none; }
+
+/* ===== 电脑端：时间数字（刻度标签 + 读数）放大，更易读 ===== */
+@media (min-width: 768px) {
+  .tick .lab { font-size: 13px; line-height: 15px; }
+  .tick.maj .lab { font-size: 15px; }
+  .tick .mark { height: 9px; }
+  .time-readout .tr-item b { font-size: 22px; }
+  .time-readout .tr-k { font-size: 14px; }
+  .time-readout .tr-item { gap: 6px; }
+}

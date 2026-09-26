@@ -21,7 +21,7 @@ const coverBadge = $('coverBadge');
 const hint = $('hint');
 const btnPlay = $('play'), btnStepB = $('stepB'), btnStepF = $('stepF');
 const btnSetCover = $('setCover'), btnExport = $('export');
-const p3 = $('p3'), p5 = $('p5'), p10 = $('p10'), pAll = $('pAll');
+const p3 = $('p3'), p5 = $('p5'), p10 = $('p10'), pAll = $('pAll'), pWheel = $('pWheel');
 const presetsBtn = $('presetsBtn'), presetsPop = $('presets');
 const dragHint = $('dragHint');
 const centerAxis = $('centerAxis');
@@ -190,7 +190,7 @@ function loadFile(f) {
   preview.src = url;
   dbSave(f).catch(() => {});               // 本地持久化：刷新后仍能恢复视频
   stage.classList.remove('empty');
-  [btnPlay, btnStepB, btnStepF, btnSetCover, btnExport, p3, p5, p10, pAll, presetsBtn].forEach(b => b.disabled = true);
+  [btnPlay, btnStepB, btnStepF, btnSetCover, btnExport, p3, p5, p10, pAll, presetsBtn, pWheel].forEach(b => b.disabled = true);
   showLoading('读取视频中…');
   preview.addEventListener('loadedmetadata', () => {
     duration = preview.duration;
@@ -203,7 +203,7 @@ function loadFile(f) {
     buildStrip();                 // 胶片条：先铺占位格
     layout();
     ensureSeeker();               // 提前加载封面抽帧用的离屏视频，导出时无需临时读整文件
-    [btnPlay, btnStepB, btnStepF, btnSetCover, btnExport, p3, p5, p10, pAll, presetsBtn].forEach(b => b.disabled = false);
+    [btnPlay, btnStepB, btnStepF, btnSetCover, btnExport, p3, p5, p10, pAll, presetsBtn, pWheel].forEach(b => b.disabled = false);
     showLoading('生成胶片条…');
     preview.pause();              // 抽帧期间暂停主预览，避免与主预览抢解码资源导致抽帧卡死
     prefetchVisible();            // 先抽最靠近视口的格，开局不黑
@@ -525,7 +525,13 @@ function updateReadout() {
 let draggingPlay = false, draggingPan = false;
 let panLastX = 0, panLastT = 0, panVX = 0, flingRAF = 0;
 function centerTime() { return Math.min(duration, Math.max(0, viewStart + (timeline.clientWidth / 2) / pps)); }
-function showCenterFrame() { playT = centerTime(); scrubTo(playT); }   // 中心轴所在帧实时显示
+// 白轴 = 当前播放头(playT)在屏幕上的水平位置；胶片条不动时它会“扫过”红框，播放更直观（见 bug 反馈）
+function placeWhiteAxis() {
+  const W = timeline.clientWidth || 0;
+  const x = (playT - viewStart) * pps;
+  centerAxis.style.left = Math.max(0, Math.min(W, x)) + 'px';
+}
+function showCenterFrame() { playT = centerTime(); scrubTo(playT); placeWhiteAxis(); }   // 中心轴所在帧实时显示
 
 // 拖动时高频设 currentTime 会互相取消导致画面滞后；改为“seek 完成后追到最新目标”，
 // 避免重叠 seek，并以解码器能达到的最高速率刷新当前帧（接近系统相册的实时拖动手感）
@@ -674,24 +680,32 @@ stage.addEventListener('touchmove', (e) => {
     const dx = midX - pinch.startMidX;
     // 双指整体左移(dx<0) → 胶片条向左移（viewStart 增大）；右移反之
     viewStart = clampView(pinch.startViewStart - dx / np);
-    pps = np; applyPan(); applyZoom(); layout();
+    pps = np; applyPan(); applyZoom(); layout(); placeWhiteAxis();
   }
 }, { passive: false });
 stage.addEventListener('touchend', (e) => { if (e.touches.length < 2) pinch = null; });
 stage.addEventListener('touchcancel', () => { pinch = null; });
 
-// 桌面：鼠标滚轮 / 触控板双指滚动 = 缩放时间轴尺度（光标处帧保持不动）
+// 桌面：鼠标滚轮 / 触控板双指滚动 = 缩放时间轴尺度（默认），或平移胶片条（设置里可切换；Shift+滚轮始终平移）
+let wheelZoom = true;
 stage.addEventListener('wheel', (e) => {
   if (stage.classList.contains('empty')) return;
   if (document.body.classList.contains('fs')) return;   // 全屏模式不缩放
   if (e.ctrlKey) return;                                // 保留 Ctrl+滚轮给浏览器缩放
   e.preventDefault();
-  const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
-  const np = Math.min(maxPps(), Math.max(minPps(), pps * factor));
-  const tl = timeline.getBoundingClientRect().left;
-  const focalT = viewStart + (e.clientX - tl) / pps;
-  viewStart = clampView(focalT - (e.clientX - tl) / np);
-  pps = np; applyPan(); applyZoom(); layout();
+  if (!wheelZoom || e.shiftKey) {                       // 平移胶片条（给没有触摸板的桌面用户一个“拖动”替代）
+    const panBy = (e.deltaY > 0 ? 1 : -1) * (e.shiftKey ? 200 : 60) / pps;
+    viewStart = clampView(viewStart + panBy);
+    applyPan(); layout();
+  } else {                                              // 缩放（光标处帧保持不动）
+    const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+    const np = Math.min(maxPps(), Math.max(minPps(), pps * factor));
+    const tl = timeline.getBoundingClientRect().left;
+    const focalT = viewStart + (e.clientX - tl) / pps;
+    viewStart = clampView(focalT - (e.clientX - tl) / np);
+    pps = np; applyPan(); applyZoom(); layout();
+  }
+  placeWhiteAxis();
 }, { passive: false });
 
 // ===== 双滑块选段 =====
@@ -709,7 +723,7 @@ function bindHandle(el, which) {
       ns = Math.max(0, Math.min(duration - len, ns));
       sel.start = ns; sel.end = ns + len;
       playT = sel.start;                 // 播放头跟随选段左缘，避免停在黑遮罩里变成“高亮一段”
-      updateReadout(); layout();
+      updateReadout(); layout(); placeWhiteAxis();
       preview.currentTime = sel.start;   // 拖动选段时实时显示“起始帧”画面
     };
     const up = (ev) => {
@@ -737,7 +751,7 @@ selBand.addEventListener('pointerdown', (e) => {
     let ns = Math.max(0, Math.min(duration - (e0 - s0), s0 + dt));
     sel.start = ns; sel.end = ns + (e0 - s0);
     playT = sel.start;                   // 播放头跟随选段左缘
-    updateReadout(); layout();
+    updateReadout(); layout(); placeWhiteAxis();
     preview.currentTime = sel.start;     // 实时显示起始帧
   };
   const up = (ev) => {
@@ -766,15 +780,24 @@ let _playRAF = 0;
 function playTick() {
   if (preview.paused || preview.ended) { _playRAF = 0; return; }
   playT = preview.currentTime;
-  viewStart = clampView(playT - (timeline.clientWidth / 2) / pps);
+  // 默认让白轴“扫过”红框（胶片条保持不动）；仅当播放头即将移出视口时才平移胶片条（放大到超出一屏时）
+  const W = timeline.clientWidth || 0;
+  const margin = 6;
+  const x = (playT - viewStart) * pps;
+  if (x < margin) viewStart = clampView(playT - margin / pps);
+  else if (x > W - margin) viewStart = clampView(playT - (W - margin) / pps);
   applyPan();
+  placeWhiteAxis();
   updateFsProgress();
   _playRAF = requestAnimationFrame(playTick);
 }
 function startPlayLoop() { if (!_playRAF) _playRAF = requestAnimationFrame(playTick); }
 preview.addEventListener('play', startPlayLoop);   // 任意播放入口（按钮/空格/自动）都启动平滑滚动
 preview.addEventListener('timeupdate', () => {
-  if (preview.currentTime >= sel.end) preview.pause();   // 到选段末尾停；滚动交给 playTick
+  if (preview.currentTime >= sel.end) {     // 到选段末尾停；白轴精确落到红框右缘
+    preview.currentTime = sel.end; preview.pause();
+    playT = sel.end; applyPan(); placeWhiteAxis();
+  }
 });
 
 // 空格键 = 播放/暂停（在输入框/按钮上时不拦截，避免误触）
@@ -813,10 +836,16 @@ p3.addEventListener('click', () => applyPreset(3));
 p5.addEventListener('click', () => applyPreset(5));
 p10.addEventListener('click', () => applyPreset(10));
 pAll.addEventListener('click', () => { sel.end = duration; updateReadout(); layout(); });
+// 调试切换：滚轮 = 缩放 / 平移（给没有触摸板的桌面用户一个“拖动”替代；Shift+滚轮始终平移）
+pWheel.addEventListener('click', () => {
+  wheelZoom = !wheelZoom;
+  pWheel.textContent = wheelZoom ? '滚轮·缩放' : '滚轮·平移';
+  presetsPop.hidden = true;
+});
 
 // “时长”弹层：点击展开/收起预设，选完或点外部自动收起（收起控件让视频更大）
 presetsBtn.addEventListener('click', (e) => { e.stopPropagation(); presetsPop.hidden = !presetsPop.hidden; });
-[p3, p5, p10, pAll].forEach(b => b.addEventListener('click', () => { presetsPop.hidden = true; }));
+[p3, p5, p10, pAll, pWheel].forEach(b => b.addEventListener('click', () => { presetsPop.hidden = true; }));
 document.addEventListener('pointerdown', (e) => {
   if (presetsPop.hidden) return;
   if (e.target.closest('.presets-wrap')) return;
