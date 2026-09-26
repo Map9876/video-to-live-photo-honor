@@ -34,6 +34,21 @@ const exporting = $('exporting'), exText = $('exText'), exBar = $('exBar'), exPc
 const dlWrap = $('dlWrap'), dlLink = $('dlLink'), dlMsg = $('dlMsg'), dlClose = $('dlClose');
 
 const BASE_PPS = CELL / FRAME;   // 56px / 0.5s = 112 px/秒（基础缩放）；胶片条每格 = 0.5s，与 CSS --cell 对齐
+
+// 手机端：浏览器地址栏/底栏会浮在页面顶部之上盖住视频。用 visualViewport 的偏移把内容推到地址栏下方
+// （offsetTop=地址栏高度；底部工具栏高度 = innerHeight - offsetTop - 可视高度）。body 用 100vh(全屏) + padding 预留。
+(function fixUrlBar() {
+  const vv = window.visualViewport;
+  const apply = () => {
+    if (!vv) return;
+    document.body.style.paddingTop = vv.offsetTop + 'px';
+    const bottom = Math.max(0, window.innerHeight - vv.offsetTop - vv.height);
+    document.body.style.paddingBottom = bottom + 'px';
+  };
+  if (vv) { vv.addEventListener('resize', apply); vv.addEventListener('scroll', apply); }
+  window.addEventListener('resize', apply);
+  apply();
+})();
 let pps = BASE_PPS;              // 当前像素/秒（双指放缩会改变）
 let viewStart = 0;              // 视口左边缘对应的时间(秒)；拖动/放缩都围绕它
 
