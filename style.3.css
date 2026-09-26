@@ -74,25 +74,25 @@ body {
 }
 /* 全屏（放大）按钮：视频右下角，正方形四角图标 */
 .fs-btn {
-  position: absolute; right: 10px; bottom: 10px; z-index: 4;
+  position: absolute; right: 10px; bottom: 10px; z-index: 5;
   width: 38px; height: 38px; border-radius: 9px; border: none;
   background: rgba(0,0,0,.4); color: #fff; font-size: 20px; line-height: 1;
   cursor: pointer; display: flex; align-items: center; justify-content: center;
 }
 .fs-btn:active { transform: scale(.94); }
-/* 全屏模式下的半透明进度条（屏幕中下，只需矩形，无需胶片条） */
-.fs-bar {
-  position: absolute; left: 8%; right: 8%; bottom: 32%; height: 6px; z-index: 4;
-  background: rgba(255,255,255,.22); border-radius: 999px; overflow: hidden;
-  pointer-events: none;
+/* 全屏模式下的“矩形”当前帧指示（屏幕中下，显示当前帧，无需胶片条） */
+.fs-rect {
+  position: absolute; left: 50%; transform: translateX(-50%); bottom: 26%;
+  width: min(46vw, 300px); aspect-ratio: 16 / 9; z-index: 4;
+  border: 2px solid rgba(255,255,255,.7); border-radius: 10px; overflow: hidden;
+  background: #000; box-shadow: 0 6px 20px rgba(0,0,0,.45); pointer-events: none;
 }
-.fs-fill { height: 100%; width: 0%; background: #fff; border-radius: 999px; }
+.fs-canvas { width: 100%; height: 100%; display: block; }
 /* 全屏模式：视频铺满屏幕，隐藏其它控件；中心白轴/背景提示也隐藏，只用半透明进度条 */
 body.fs .preview-wrap { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 60; border-radius: 0; }
 body.fs #preview { width: 100%; height: 100%; object-fit: contain; }
 body.fs .ctrls, body.fs .time-readout, body.fs .timeline, body.fs .legend, body.fs .footer { display: none; }
 body.fs .center-axis, body.fs .drag-hint { display: none; }
-body.fs .fs-bar { display: block; }
 
 /* ===== 控制条（俄罗斯方块式紧凑网格，自动换行铺满）===== */
 .ctrls {
