@@ -97,6 +97,7 @@ body {
   border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.18);
 }
 .presets-pop .ctrl { width: 100%; }
+.presets-pop[hidden] { display: none; }   /* hidden 属性必须能盖过上面的 display:grid */
 
 /* 背景拖动提示：置于视频“之后”的底层（不压视频），仅在黑边/空隙透出，作背景图标 */
 .drag-hint {
@@ -125,6 +126,7 @@ body {
 
 /* ===== 时间轴：横向胶片条（真实抽帧缩略图，0.5s/帧，可左右滑动）===== */
 .timeline {
+  position: relative;   /* 作为 .center-axis 的绝对定位容器，避免白轴撑满整屏 */
   width: 100%; overflow: hidden; user-select: none;   /* 平移由 JS 用 transform 驱动，禁用原生滚动避免双重偏移 */
   -webkit-overflow-scrolling: touch; touch-action: none;
   flex: 0 0 auto;   /* 禁止被纵向 flex 压缩（否则内容超高时时间轴被挤成 0 高度而消失） */
