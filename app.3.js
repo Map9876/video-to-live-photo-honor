@@ -68,7 +68,11 @@ function xToTime(x) { return Math.min(duration, Math.max(0, x / pps)); }  // x �
 function minPps() { return Math.max(8, (timeline.clientWidth || window.innerWidth) / Math.max(0.5, duration)); }
 function maxPps() { return Math.max(BASE_PPS * 20, (timeline.clientWidth || window.innerWidth) / FRAME); }
 function clampView(v) { const maxS = Math.max(0, duration - (timeline.clientWidth || 0) / pps); return Math.min(maxS, Math.max(0, v)); }
-function applyPan() { tlInner.style.transform = 'translateX(' + (-viewStart * pps) + 'px)'; buildRuler(); }
+let _rulerThrottle = 0;
+function applyPan() {
+  tlInner.style.transform = 'translateX(' + (-viewStart * pps) + 'px)';
+  if ((_rulerThrottle++ & 1) === 0) buildRuler();   // 滚动时隔帧重建刻度，保证丝滑不卡
+}
 function applyZoom() {
   const cw = pps * FRAME;
   strip.style.width = contentWidth() + 'px';
@@ -743,14 +747,21 @@ function playSegment() {
   if (p && p.catch) p.catch(() => {});
 }
 btnPlay.addEventListener('click', playSegment);
-preview.addEventListener('timeupdate', () => {
-  if (preview.currentTime >= sel.end) preview.pause();
+// 平滑播放滚动：用 requestAnimationFrame(每帧) 读 currentTime 滚动胶片条，
+// 不再靠 timeupdate(~4fps) 驱动，避免胶片条“一帧一帧跳着走”
+let _playRAF = 0;
+function playTick() {
+  if (preview.paused || preview.ended) { _playRAF = 0; return; }
+  playT = preview.currentTime;
+  viewStart = clampView(playT - (timeline.clientWidth / 2) / pps);
+  applyPan();
   updateFsProgress();
-  if (!draggingPan) {                       // 播放时中心白轴停在播放位置：胶片自动滚动跟随
-    playT = preview.currentTime;
-    viewStart = clampView(playT - (timeline.clientWidth / 2) / pps);
-    applyPan(); layout();
-  }
+  _playRAF = requestAnimationFrame(playTick);
+}
+function startPlayLoop() { if (!_playRAF) _playRAF = requestAnimationFrame(playTick); }
+preview.addEventListener('play', startPlayLoop);   // 任意播放入口（按钮/空格/自动）都启动平滑滚动
+preview.addEventListener('timeupdate', () => {
+  if (preview.currentTime >= sel.end) preview.pause();   // 到选段末尾停；滚动交给 playTick
 });
 
 // 空格键 = 播放/暂停（在输入框/按钮上时不拦截，避免误触）
