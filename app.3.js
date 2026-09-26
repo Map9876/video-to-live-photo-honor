@@ -36,18 +36,29 @@ const dlWrap = $('dlWrap'), dlLink = $('dlLink'), dlMsg = $('dlMsg'), dlClose = 
 const BASE_PPS = CELL / FRAME;   // 56px / 0.5s = 112 px/秒（基础缩放）；胶片条每格 = 0.5s，与 CSS --cell 对齐
 
 // 手机端：浏览器地址栏/底栏会浮在页面顶部之上盖住视频。用 visualViewport 的偏移把内容推到地址栏下方
-// （offsetTop=地址栏高度；底部工具栏高度 = innerHeight - offsetTop - 可视高度）。body 用 100vh(全屏) + padding 预留。
+// （offsetTop=地址栏高度；底部工具栏高度 = innerHeight - offsetTop - 可视高度）。
+// 注意：部分浏览器地址栏为“覆盖模式”，offsetTop 恒为 0；此时用移动端兜底常量(约地址栏高度)预留。
+// 另外初始布局未稳时 offsetTop 可能暂为 0，故在 rAF/load/timeout 多时机补跑以拿到真实高度。
 (function fixUrlBar() {
   const vv = window.visualViewport;
+  const mq = window.matchMedia('(max-width: 767px)');
   const apply = () => {
     if (!vv) return;
-    document.body.style.paddingTop = vv.offsetTop + 'px';
-    const bottom = Math.max(0, window.innerHeight - vv.offsetTop - vv.height);
+    const isMobile = mq.matches;
+    const safeTop = isMobile ? 56 : 0;            // 覆盖模式兜底：地址栏约 56px(Android Chrome)
+    const top = vv.offsetTop || safeTop;
+    document.body.style.paddingTop = top + 'px';
+    const bottom = isMobile ? Math.max(0, window.innerHeight - vv.offsetTop - vv.height) : 0;
     document.body.style.paddingBottom = bottom + 'px';
   };
   if (vv) { vv.addEventListener('resize', apply); vv.addEventListener('scroll', apply); }
   window.addEventListener('resize', apply);
+  window.addEventListener('orientationchange', apply);
+  if (mq.addEventListener) mq.addEventListener('change', apply); else if (mq.addListener) mq.addListener(apply);
   apply();
+  requestAnimationFrame(() => { apply(); requestAnimationFrame(apply); });
+  window.addEventListener('load', apply);
+  setTimeout(apply, 250);
 })();
 let pps = BASE_PPS;              // 当前像素/秒（双指放缩会改变）
 let viewStart = 0;              // 视口左边缘对应的时间(秒)；拖动/放缩都围绕它
