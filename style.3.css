@@ -122,13 +122,15 @@ body.fs { overflow: hidden; background: #000; }   /* 全屏时禁止滚动、背
 .presets-wrap { position: relative; display: flex; }
 .presets-wrap > .ctrl { width: 100%; }
 .presets-pop {
-  position: absolute; bottom: calc(100% + 8px); left: 0; right: 0; z-index: 20;
+  position: absolute; bottom: calc(100% + 10px); left: 50%; transform: translateX(-50%);
+  width: max(220px, 64vw); max-width: calc(100vw - 24px); z-index: 30;
   display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;
-  padding: 8px; background: var(--panel); border: 1px solid var(--line);
-  border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.18);
+  padding: 10px; background: var(--panel); border: 1px solid var(--line);
+  border-radius: 14px; box-shadow: 0 10px 30px rgba(0,0,0,.22);
 }
-.presets-pop .ctrl { width: 100%; }
-.presets-pop[hidden] { display: none; }   /* hidden 属性必须能盖过上面的 display:grid */
+.presets-pop .ctrl { width: 100%; white-space: nowrap; }
+.presets-pop[hidden] { display: none; }
+.ctrl.icon svg { display: block; margin: 0 auto; }   /* hidden 属性必须能盖过上面的 display:grid */
 
 /* 背景拖动提示：置于视频“之后”的底层（不压视频），仅在黑边/空隙透出，作背景图标 */
 .drag-hint {
