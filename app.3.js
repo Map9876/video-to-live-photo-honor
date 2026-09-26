@@ -310,8 +310,6 @@ function fitPreview() {
   const s = Math.min(availW / videoW, availH / videoH);
   previewWrap.style.width = Math.round(videoW * s) + 'px';
   previewWrap.style.height = Math.round(videoH * s) + 'px';
-  // 中心白轴：放在视频框内（previewWrap overflow:hidden 裁切），只贯穿视频、绝不顶到视频上方空白
-  if (centerAxis) { centerAxis.style.top = '0px'; centerAxis.style.bottom = '0px'; centerAxis.style.left = '50%'; }
 }
 
 // ===== 布局（时间轴：宽度 = 时长×PPS，可横向滚动）=====

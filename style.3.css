@@ -148,11 +148,13 @@ body.fs .center-axis, body.fs .drag-hint { display: none; }
 
 /* ===== 时间轴：横向胶片条（真实抽帧缩略图，0.5s/帧，可左右滑动）===== */
 .timeline {
-  position: relative;   /* 作为 .center-axis 的绝对定位容器，避免白轴撑满整屏 */
-  width: 100%; overflow: hidden; user-select: none;   /* 平移由 JS 用 transform 驱动，禁用原生滚动避免双重偏移 */
+  position: relative;   /* 作为 .center-axis 的绝对定位容器 */
+  width: 100%; user-select: none;   /* 平移由 JS 用 transform 驱动，禁用原生滚动避免双重偏移 */
   -webkit-overflow-scrolling: touch; touch-action: none;
   flex: 0 0 auto;   /* 禁止被纵向 flex 压缩（否则内容超高时时间轴被挤成 0 高度而消失） */
 }
+/* 只裁剪胶片条的水平平移溢出；白轴作为兄弟节点可向上/向下溢出时间轴，贯穿胶片条并两头伸出 */
+.tl-clip { overflow: hidden; }
 .timeline::-webkit-scrollbar { height: 6px; }
 .timeline::-webkit-scrollbar-thumb { background: rgba(0,0,0,.18); border-radius: 3px; }
 .timeline-inner { position: relative; height: calc(var(--strip-h) + 16px); min-width: 100%; will-change: transform; }
@@ -221,9 +223,9 @@ body.fs .center-axis, body.fs .drag-hint { display: none; }
   box-shadow: 0 1px 6px rgba(0,0,0,.3); border: 2px solid #fff;
 }
 .handle-l { left: 0; } .handle-r { left: 100%; }
-/* 屏幕中心固定白色细长轴 = 当前位置指示器（胶片在其下滑动，轴显该处实时帧） */
+/* 屏幕中心固定白色细长轴 = 当前位置指示器：位于胶片条正中，向上、向下均溢出时间轴（不在视频里、也不顶满整屏） */
 .center-axis {
-  position: absolute; top: 0; bottom: 0; left: 50%; width: 2px; transform: translateX(-1px);
+  position: absolute; top: -34px; bottom: -34px; left: 50%; width: 2px; transform: translateX(-1px);
   background: #fff; box-shadow: 0 0 4px rgba(0,0,0,.45); z-index: 6; pointer-events: none;
 }
 .center-axis .ca-knob {

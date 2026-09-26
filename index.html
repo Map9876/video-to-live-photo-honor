@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>LivePhoto 制作</title>
-  <link rel="stylesheet" href="style.3.css?v=3" />
+  <link rel="stylesheet" href="style.3.css?v=4" />
 </head>
 <body>
   <!-- 全屏上传：无标题，点击任意位置选择视频 -->
@@ -22,7 +22,6 @@
         <div id="coverBadge" class="cover-badge" hidden></div>
         <button class="fs-btn" id="fsBtn" aria-label="全屏预览">⛶</button>
         <div class="fs-rect" id="fsRect" hidden><canvas class="fs-canvas" id="fsCanvas"></canvas></div>
-        <div class="center-axis" id="centerAxis"><span class="ca-knob"></span></div>
         <div class="drag-hint" id="dragHint">
           <div class="dh-badge"><div class="dh-ic">↔</div><div>整屏任意位置可拖动胶片条<br>双指缩放</div></div>
         </div>
@@ -53,18 +52,22 @@
 
       <!-- 时间轴：横向胶片条（真实抽帧缩略图，0.5s/帧，两端圆角，滚动按需抽帧）+ 选段/播放头叠加 -->
       <div class="timeline" id="timeline">
-        <div class="timeline-inner" id="tlInner">
-          <div class="ruler" id="ruler"></div>
-          <div class="strip" id="strip"></div>
-          <div class="track" id="track">
-            <div class="mask mask-l" id="maskL"></div>
-            <div class="mask mask-r" id="maskR"></div>
-            <div class="sel-band" id="selBand"><span class="sel-label">保留</span></div>
-            <div class="handle handle-l" id="handleL"><span class="grip"></span></div>
-            <div class="handle handle-r" id="handleR"><span class="grip"></span></div>
-            <div class="playhead" id="playhead" hidden></div>
+        <div class="tl-clip">
+          <div class="timeline-inner" id="tlInner">
+            <div class="ruler" id="ruler"></div>
+            <div class="strip" id="strip"></div>
+            <div class="track" id="track">
+              <div class="mask mask-l" id="maskL"></div>
+              <div class="mask mask-r" id="maskR"></div>
+              <div class="sel-band" id="selBand"><span class="sel-label">保留</span></div>
+              <div class="handle handle-l" id="handleL"><span class="grip"></span></div>
+              <div class="handle handle-r" id="handleR"><span class="grip"></span></div>
+              <div class="playhead" id="playhead" hidden></div>
+            </div>
           </div>
         </div>
+        <!-- 中心白轴：位于胶片条正中（屏幕中心＝当前位置），向上、向下均溢出时间轴 -->
+        <div class="center-axis" id="centerAxis"><span class="ca-knob"></span></div>
       </div>
 
       <div class="legend">
@@ -106,6 +109,6 @@
 
   <input id="file" type="file" accept="video/*" hidden />
 
-  <script src="app.3.js?v=3"></script>
+  <script src="app.3.js?v=4"></script>
 </body>
 </html>
