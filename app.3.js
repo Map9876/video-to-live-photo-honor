@@ -653,33 +653,46 @@ stage.addEventListener('pointermove', movePan);
 stage.addEventListener('pointerup', upPan);
 stage.addEventListener('pointercancel', upPan);
 
-// 双指放缩（移动端）：焦点帧保持原位，持续缩放——整屏任意位置起手均可
+// 双指手势（平板/移动端）：双指整体拖动 = 平移胶片条（左移=胶片条左移）；双指张开/合拢 = 缩放尺度
 let pinch = null;
 stage.addEventListener('touchstart', (e) => {
   if (e.touches.length === 2) {
     draggingPan = false; draggingPlay = false;
     const [a, b] = e.touches;
     const midX = (a.clientX + b.clientX) / 2;
-    const tl = timeline.getBoundingClientRect().left;
-    pinch = { dist: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY),
-              startPps: pps,
-              focalT: viewStart + (midX - tl) / pps };
+    const d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+    pinch = { dist: d, startPps: pps, startViewStart: viewStart, startMidX: midX };
   }
 }, { passive: false });
 stage.addEventListener('touchmove', (e) => {
   if (e.touches.length === 2 && pinch) {
     e.preventDefault();
     const [a, b] = e.touches;
-    const dist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
     const midX = (a.clientX + b.clientX) / 2;
-    const tl = timeline.getBoundingClientRect().left;
-    const np = Math.min(maxPps(), Math.max(minPps(), pinch.startPps * (dist / pinch.dist)));
-    viewStart = clampView(pinch.focalT - (midX - tl) / np);
+    const d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+    const np = Math.min(maxPps(), Math.max(minPps(), pinch.startPps * (d / pinch.dist)));
+    const dx = midX - pinch.startMidX;
+    // 双指整体左移(dx<0) → 胶片条向左移（viewStart 增大）；右移反之
+    viewStart = clampView(pinch.startViewStart - dx / np);
     pps = np; applyPan(); applyZoom(); layout();
   }
 }, { passive: false });
 stage.addEventListener('touchend', (e) => { if (e.touches.length < 2) pinch = null; });
 stage.addEventListener('touchcancel', () => { pinch = null; });
+
+// 桌面：鼠标滚轮 / 触控板双指滚动 = 缩放时间轴尺度（光标处帧保持不动）
+stage.addEventListener('wheel', (e) => {
+  if (stage.classList.contains('empty')) return;
+  if (document.body.classList.contains('fs')) return;   // 全屏模式不缩放
+  if (e.ctrlKey) return;                                // 保留 Ctrl+滚轮给浏览器缩放
+  e.preventDefault();
+  const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+  const np = Math.min(maxPps(), Math.max(minPps(), pps * factor));
+  const tl = timeline.getBoundingClientRect().left;
+  const focalT = viewStart + (e.clientX - tl) / pps;
+  viewStart = clampView(focalT - (e.clientX - tl) / np);
+  pps = np; applyPan(); applyZoom(); layout();
+}, { passive: false });
 
 // ===== 双滑块选段 =====
 function bindHandle(el, which) {
