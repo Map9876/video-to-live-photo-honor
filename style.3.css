@@ -25,16 +25,18 @@ body {
   background: var(--bg); color: var(--text);
   font: 14px/1.4 -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
   display: flex; flex-direction: column;
-  height: 100vh; overflow: hidden;   /* 100vh=全屏(配合 viewport-fit=cover)；地址栏高度由顶部头标占位，不再用 padding */
+  /* 用 svh(小视口=地址栏已收起/显示时的可见高度)，安卓 Chrome 推送模式下地址栏会把布局视口压短，
+     svh 已把地址栏高度排除在外，body 从地址栏下方开始，无需 JS 预留、也不会被遮挡。
+     前缀回退：100vh 用于不支持 svh 的旧浏览器。 */
+  height: 100vh; height: 100svh; overflow: hidden;
   -webkit-user-select: none; user-select: none;
 }
 
-/* 顶部头标：真实占据顶部空间，把下方整块（含视频）整体顶到地址栏下方；
-   地址栏只盖住头标上半截，标题置于头标底部可见区。高度由 JS 按地址栏实际高度设定。 */
+/* 顶部头标：普通文档流、自然高度，仅做一条品牌条；不再用 JS 预留地址栏高度（交给 svh）。 */
 .app-header {
-  flex: 0 0 auto; display: flex; align-items: flex-end;
-  padding: 0 14px 8px; background: var(--panel);
-  border-bottom: 1px solid var(--line); overflow: hidden;
+  flex: 0 0 auto; display: flex; align-items: center;
+  padding: 10px 14px; padding-top: max(10px, env(safe-area-inset-top));
+  background: var(--panel); border-bottom: 1px solid var(--line);
 }
 .app-header .ah-title { font-weight: 600; font-size: 15px; color: var(--text); line-height: 1; }
 body.fs .app-header { display: none; }   /* 全屏模式不显示头标，视频铺满 */

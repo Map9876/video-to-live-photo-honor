@@ -36,29 +36,8 @@ const dlWrap = $('dlWrap'), dlLink = $('dlLink'), dlMsg = $('dlMsg'), dlClose = 
 
 const BASE_PPS = CELL / FRAME;   // 56px / 0.5s = 112 px/秒（基础缩放）；胶片条每格 = 0.5s，与 CSS --cell 对齐
 
-// 手机端：浏览器地址栏浮在页面顶部盖住内容。做法：让“顶部头标”真实占据顶部空间（普通文档流），
-// 高度 = 地址栏高度(覆盖模式兜底 56) + 可见标题区 32px；标题置于头标底部可见区。
-// 这样地址栏只盖住头标上半截，视频始终在其下方。多时机补读地址栏真实高度。
-(function fixUrlBar() {
-  const vv = window.visualViewport;
-  const mq = window.matchMedia('(max-width: 767px)');
-  const apply = () => {
-    if (!appHeader) return;
-    const isMobile = mq.matches;
-    let top = 56;                                   // 覆盖模式兜底：地址栏约 56px
-    if (vv) top = Math.max(vv.offsetTop || 0, 56);
-    const h = isMobile ? (top + 32) : 44;           // 桌面无地址栏，仅一条 44px 品牌条
-    appHeader.style.height = h + 'px';
-  };
-  if (vv) { vv.addEventListener('resize', apply); vv.addEventListener('scroll', apply); }
-  window.addEventListener('resize', apply);
-  window.addEventListener('orientationchange', apply);
-  if (mq.addEventListener) mq.addEventListener('change', apply); else if (mq.addListener) mq.addListener(apply);
-  apply();
-  requestAnimationFrame(() => { apply(); requestAnimationFrame(apply); });
-  window.addEventListener('load', apply);
-  setTimeout(apply, 250);
-})();
+// 地址栏遮挡问题已交给 CSS 的 `height: 100svh` 处理（安卓 Chrome 推送模式下 svh 已把地址栏高度排除，
+// body 直接从地址栏下方开始，无需 JS 预留，也不会被遮挡）。此处不再用 visualViewport 动态撑高头标。
 let pps = BASE_PPS;              // 当前像素/秒（双指放缩会改变）
 let viewStart = 0;              // 视口左边缘对应的时间(秒)；拖动/放缩都围绕它
 
