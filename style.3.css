@@ -89,10 +89,16 @@ body {
 }
 .fs-fill { height: 100%; width: 0%; background: #fff; border-radius: 999px; }
 /* 全屏模式：视频铺满屏幕，隐藏其它控件；中心白轴/背景提示也隐藏，只用半透明进度条 */
-body.fs .preview-wrap { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 60; border-radius: 0; }
+body.fs .preview-wrap {
+  position: fixed !important; inset: 0 !important;
+  width: 100vw !important; height: 100vh !important; height: 100dvh !important;
+  max-width: none !important; max-height: none !important;
+  z-index: 60 !important; border-radius: 0 !important;
+}
 body.fs #preview { width: 100%; height: 100%; object-fit: contain; }
 body.fs .ctrls, body.fs .time-readout, body.fs .timeline, body.fs .legend, body.fs .footer { display: none; }
 body.fs .center-axis, body.fs .drag-hint { display: none; }
+body.fs { overflow: hidden; background: #000; }   /* 全屏时禁止滚动、背景压黑 */
 
 /* ===== 控制条（俄罗斯方块式紧凑网格，自动换行铺满）===== */
 .ctrls {

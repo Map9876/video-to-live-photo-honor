@@ -577,8 +577,27 @@ fsBtn.addEventListener('click', (e) => {
   e.stopPropagation();
   const on = document.body.classList.toggle('fs');
   fsRect.hidden = !on;
-  if (on) updateFsProgress();
+  if (on) {
+    updateFsProgress();
+    // 真全屏：隐藏手机浏览器地址栏（Android/Chrome 支持任意元素全屏；iOS 仅 video 可全屏，退回 CSS 铺满）
+    const el = previewWrap;
+    if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
+    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+  } else {
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    else if (document.webkitFullscreenElement && document.webkitExitFullscreen) document.webkitExitFullscreen();
+  }
 });
+// 用户用系统手势退出原生全屏时，同步关掉我们的全屏态
+function syncFsFromNative() {
+  const native = document.fullscreenElement || document.webkitFullscreenElement;
+  if (!native && document.body.classList.contains('fs')) {
+    document.body.classList.remove('fs');
+    fsRect.hidden = true;
+  }
+}
+document.addEventListener('fullscreenchange', syncFsFromNative);
+document.addEventListener('webkitfullscreenchange', syncFsFromNative);
 let fsDragging = false, fsStartX = 0, fsStartT = 0;
 function startFsScrub(e) {
   fsDragging = true; fsStartX = e.clientX; fsStartT = playT;
