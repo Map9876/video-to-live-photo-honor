@@ -24,6 +24,8 @@ const btnSetCover = $('setCover'), btnExport = $('export');
 const p3 = $('p3'), p5 = $('p5'), p10 = $('p10'), pAll = $('pAll');
 const presetsBtn = $('presetsBtn'), presetsPop = $('presets');
 const dragHint = $('dragHint');
+const centerAxis = $('centerAxis');
+const fsBtn = $('fsBtn'), fsBar = $('fsBar'), fsFill = $('fsFill');
 const tStart = $('tStart'), tEnd = $('tEnd'), tDur = $('tDur');
 const rePick = $('rePick'), workspace = $('workspace'), placeholder = $('placeholder');
 const loading = $('loading'), loadingText = $('loadingText');
@@ -308,6 +310,8 @@ function fitPreview() {
   const s = Math.min(availW / videoW, availH / videoH);
   previewWrap.style.width = Math.round(videoW * s) + 'px';
   previewWrap.style.height = Math.round(videoH * s) + 'px';
+  // 中心白轴：从“视频顶端”一直延伸到工作区底部（贯穿视频+控制条+胶片条），不窜到视频上方空白
+  if (centerAxis) { centerAxis.style.top = previewWrap.offsetTop + 'px'; centerAxis.style.bottom = '0px'; }
 }
 
 // ===== 布局（时间轴：宽度 = 时长×PPS，可横向滚动）=====
@@ -510,6 +514,7 @@ function onTimelineDown(e) {
   if (e.target.closest('.handle')) return;        // 手柄自己处理
   if (e.target.closest('.sel-band')) return;      // 选段矩形自己处理
   if (e.pointerType === 'mouse' && e.button !== 0) return;
+  if (document.body.classList.contains('fs')) { startFsScrub(e); return; }   // 全屏模式：左右拖动=前进/后退
   if (dragHint) dragHint.hidden = true;        // 首次拖动后隐藏背景提示
   e.preventDefault();
   if (flingRAF) { cancelAnimationFrame(flingRAF); flingRAF = 0; }
@@ -520,6 +525,7 @@ function onTimelineDown(e) {
   showCenterFrame();
 }
 function movePan(e) {
+  if (document.body.classList.contains('fs')) { fsScrubMove(e); return; }
   if (!draggingPan) return;
   const now = performance.now(), dt = now - panLastT;
   const dx = e.clientX - panLastX;
@@ -529,6 +535,7 @@ function movePan(e) {
   showCenterFrame(); applyPan(); layout();
 }
 function upPan(e) {
+  if (document.body.classList.contains('fs')) { fsScrubEnd(e); return; }
   draggingPan = false; draggingPlay = false;
   try { stage.releasePointerCapture(e.pointerId); } catch (_) {}
   if (Math.abs(panVX) > 0.04) startFling();      // 松手惯性
@@ -546,6 +553,27 @@ function startFling() {
   };
   flingRAF = requestAnimationFrame(step);
 }
+// ===== 全屏模式：视频铺满 + 半透明进度条 + 左右拖动前进/后退（无需胶片条）=====
+function updateFsBar() { if (fsFill && duration) fsFill.style.width = Math.min(100, Math.max(0, playT / duration * 100)) + '%'; }
+fsBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  document.body.classList.toggle('fs');
+  updateFsBar();
+});
+let fsDragging = false, fsStartX = 0, fsStartT = 0;
+function startFsScrub(e) {
+  fsDragging = true; fsStartX = e.clientX; fsStartT = playT;
+  try { stage.setPointerCapture(e.pointerId); } catch (_) {}
+  preview.pause(); e.preventDefault(); updateFsBar();
+}
+function fsScrubMove(e) {
+  if (!fsDragging) return;
+  const dx = e.clientX - fsStartX;
+  const dt = (dx / window.innerWidth) * duration;   // 横向拖满一屏 = 整段视频
+  playT = Math.min(duration, Math.max(0, fsStartT + dt));
+  preview.currentTime = playT; updateFsBar();
+}
+function fsScrubEnd(e) { fsDragging = false; try { stage.releasePointerCapture(e.pointerId); } catch (_) {} }
 // 整屏（含胶片条上方视频区、下方文字区）都可平移 / 缩放胶片条，视为同一同步层
 stage.addEventListener('pointerdown', onTimelineDown);
 stage.addEventListener('pointermove', movePan);
@@ -647,6 +675,7 @@ function playSegment() {
 btnPlay.addEventListener('click', playSegment);
 preview.addEventListener('timeupdate', () => {
   if (preview.currentTime >= sel.end) preview.pause();
+  updateFsBar();
   if (!draggingPan) {                       // 播放时中心白轴停在播放位置：胶片自动滚动跟随
     playT = preview.currentTime;
     viewStart = clampView(playT - (timeline.clientWidth / 2) / pps);

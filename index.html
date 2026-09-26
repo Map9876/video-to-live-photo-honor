@@ -20,6 +20,8 @@
       <div class="preview-wrap" id="previewWrap">
         <video id="preview" playsinline></video>
         <div id="coverBadge" class="cover-badge" hidden></div>
+        <button class="fs-btn" id="fsBtn" aria-label="全屏预览">⛶</button>
+        <div class="fs-bar" id="fsBar" hidden><div class="fs-fill" id="fsFill"></div></div>
         <div class="drag-hint" id="dragHint">
           <div class="dh-badge"><div class="dh-ic">↔</div><div>整屏任意位置可拖动胶片条<br>双指缩放</div></div>
         </div>
@@ -62,8 +64,9 @@
             <div class="playhead" id="playhead" hidden></div>
           </div>
         </div>
-        <div class="center-axis" id="centerAxis"><span class="ca-knob"></span></div>
       </div>
+
+      <div class="center-axis" id="centerAxis"><span class="ca-knob"></span></div>
 
       <div class="legend">
         <span><i class="lg-band"></i>红框＝保留段</span>
