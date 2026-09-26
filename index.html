@@ -30,7 +30,7 @@
         <button id="stepB" class="ctrl ghost" disabled>后退一帧</button>
         <button id="stepF" class="ctrl ghost" disabled>前进一帧</button>
         <div class="presets-wrap">
-          <button id="presetsBtn" class="ctrl ghost" disabled>时长 ▾</button>
+          <button id="presetsBtn" class="ctrl ghost icon" aria-label="时长设置" disabled>⚙</button>
           <div id="presets" class="presets-pop" hidden>
             <button id="p3" class="ctrl ghost" disabled>3秒</button>
             <button id="p5" class="ctrl ghost" disabled>5秒</button>
@@ -59,15 +59,16 @@
             <div class="sel-band" id="selBand"><span class="sel-label">保留</span></div>
             <div class="handle handle-l" id="handleL"><span class="grip"></span></div>
             <div class="handle handle-r" id="handleR"><span class="grip"></span></div>
-            <div class="playhead" id="playhead"><span class="knob"></span></div>
+            <div class="playhead" id="playhead" hidden></div>
           </div>
         </div>
+        <div class="center-axis" id="centerAxis"><span class="ca-knob"></span></div>
       </div>
 
       <div class="legend">
         <span><i class="lg-band"></i>红框＝保留段</span>
-        <span><i class="lg-head"></i>蓝线＝播放位置</span>
-        <span>拖红滑块调起/止 · 拖进度条预览</span>
+        <span><i class="lg-head"></i>白线＝当前位置（屏幕中心）</span>
+        <span>拖动胶片条平移 · 双指缩放 · 松手有惯性</span>
       </div>
 
       <div class="footer">红框＝保留段 · 拖动矩形选段 · 松手即播放　|　<b>LivePhoto 制作</b>（本地处理，不上传服务器）</div>

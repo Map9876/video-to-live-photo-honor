@@ -498,13 +498,12 @@ function updateReadout() {
 // ===== 统一时间轴交互：整条底部 = 一个同步层 =====
 // 拖动任意位置：抓住的那一帧始终贴着手指，胶片条随之平移（拖 = 平移 + 拖动进度，同一层）。
 // 双指放缩：以两指中点为焦点持续缩放，松手保持（不回弹）。
-let draggingPlay = false, draggingPan = false, panGrabbedT = 0, panRectLeft = 0;
-function movePlayhead(e) {
-  const rect = track.getBoundingClientRect();
-  playT = xToTime(e.clientX - rect.left);
-  preview.currentTime = playT;
-  layout();
-}
+// 平移交互（原生编辑器手感）：屏幕中心为固定白色细长轴(#centerAxis)，拖动=胶片在轴下滑动，
+// 轴始终显示当前位置帧（实时预览）；松手按速度惯性继续滑行后衰减。
+let draggingPlay = false, draggingPan = false;
+let panLastX = 0, panLastT = 0, panVX = 0, flingRAF = 0;
+function centerTime() { return Math.min(duration, Math.max(0, viewStart + (timeline.clientWidth / 2) / pps)); }
+function showCenterFrame() { playT = centerTime(); preview.currentTime = playT; }   // 中心轴所在帧实时显示
 function onTimelineDown(e) {
   if (stage.classList.contains('empty')) return;
   if (e.target.closest('button, input, a')) return;   // 控件不触发平移（手柄/选段已 stopPropagation）
@@ -513,24 +512,40 @@ function onTimelineDown(e) {
   if (e.pointerType === 'mouse' && e.button !== 0) return;
   if (dragHint) dragHint.hidden = true;        // 首次拖动后隐藏背景提示
   e.preventDefault();
+  if (flingRAF) { cancelAnimationFrame(flingRAF); flingRAF = 0; }
   draggingPan = true; draggingPlay = true;
   preview.pause();
   try { stage.setPointerCapture(e.pointerId); } catch (_) {}
-  panRectLeft = timeline.getBoundingClientRect().left;
-  panGrabbedT = viewStart + (e.clientX - panRectLeft) / pps;   // 抓住的这一帧（任意位置起手都映射到内容坐标）
-  preview.currentTime = panGrabbedT;
-  movePan(e);
+  panLastX = e.clientX; panLastT = performance.now(); panVX = 0;
+  showCenterFrame();
 }
 function movePan(e) {
   if (!draggingPan) return;
-  const localX = e.clientX - panRectLeft;
-  // 抓住的帧始终贴着手指：视口左缘随之平移，进度(playhead)保持在该帧
-  viewStart = clampView(panGrabbedT - localX / pps);
-  playT = Math.min(duration, Math.max(0, panGrabbedT));
-  preview.currentTime = playT;
-  applyPan(); layout();
+  const now = performance.now(), dt = now - panLastT;
+  const dx = e.clientX - panLastX;
+  if (dt > 0) panVX = dx / dt;            // px/ms，记录速度供惯性用
+  panLastX = e.clientX; panLastT = now;
+  viewStart = clampView(viewStart - dx / pps);   // 内容跟随手指
+  showCenterFrame(); applyPan(); layout();
 }
-function upPan(e) { draggingPan = false; draggingPlay = false; try { stage.releasePointerCapture(e.pointerId); } catch (_) {} }
+function upPan(e) {
+  draggingPan = false; draggingPlay = false;
+  try { stage.releasePointerCapture(e.pointerId); } catch (_) {}
+  if (Math.abs(panVX) > 0.04) startFling();      // 松手惯性
+}
+function startFling() {
+  let last = performance.now();
+  const step = (now) => {
+    const dt = Math.min(48, now - last); last = now;
+    panVX *= 0.94;                     // 摩擦衰减
+    const dx = panVX * dt;
+    viewStart = clampView(viewStart - dx / pps);
+    showCenterFrame(); applyPan(); layout();
+    if (Math.abs(panVX) > 0.02) flingRAF = requestAnimationFrame(step);
+    else flingRAF = 0;
+  };
+  flingRAF = requestAnimationFrame(step);
+}
 // 整屏（含胶片条上方视频区、下方文字区）都可平移 / 缩放胶片条，视为同一同步层
 stage.addEventListener('pointerdown', onTimelineDown);
 stage.addEventListener('pointermove', movePan);
@@ -632,7 +647,11 @@ function playSegment() {
 btnPlay.addEventListener('click', playSegment);
 preview.addEventListener('timeupdate', () => {
   if (preview.currentTime >= sel.end) preview.pause();
-  if (!draggingPlay) { playT = preview.currentTime; layout(); }   // 播放时蓝线跟随
+  if (!draggingPan) {                       // 播放时中心白轴停在播放位置：胶片自动滚动跟随
+    playT = preview.currentTime;
+    viewStart = clampView(playT - (timeline.clientWidth / 2) / pps);
+    applyPan(); layout();
+  }
 });
 
 // 空格键 = 播放/暂停（在输入框/按钮上时不拦截，避免误触）
