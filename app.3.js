@@ -289,8 +289,13 @@ function grabCover(v, t) {
       v.addEventListener('error', () => rej(new Error('封面视频加载失败')), { once: true });
     });
     const waitFrame = () => new Promise((res) => {
-      if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(() => res());
-      else requestAnimationFrame(() => requestAnimationFrame(res));   // 退回：两帧保呈现
+      let done = false;
+      const ok = () => { if (!done) { done = true; res(); } };
+      if (v.requestVideoFrameCallback) { try { v.requestVideoFrameCallback(ok); } catch (_) {} }
+      // 兜底：暂停的视频 rVFC 可能永不触发（如已停在目标帧），超时也照常画当前帧，避免死锁
+      setTimeout(ok, 200);
+      // 非 Chromium 退回：两帧保呈现
+      if (!v.requestVideoFrameCallback) requestAnimationFrame(() => requestAnimationFrame(ok));
     });
     const draw = () => {
       const vw = v.videoWidth, vh = v.videoHeight;
