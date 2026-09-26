@@ -229,9 +229,9 @@ body.fs { overflow: hidden; background: #000; }   /* 全屏时禁止滚动、背
   box-shadow: 0 1px 6px rgba(0,0,0,.3); border: 2px solid #fff;
 }
 .handle-l { left: 0; } .handle-r { left: 100%; }
-/* 屏幕中心固定白色细长轴 = 当前位置指示器：位于胶片条正中，向上、向下均溢出时间轴（不在视频里、也不顶满整屏） */
+/* 屏幕中心固定白色细长轴 = 当前位置指示器：贯穿胶片条（刻度尺+胶片），上不超出时间刻度、下不插到页底 */
 .center-axis {
-  position: absolute; top: -34px; bottom: -34px; left: 50%; width: 2px; transform: translateX(-1px);
+  position: absolute; top: 0; bottom: 0; left: 50%; width: 2px; transform: translateX(-1px);
   background: #fff; box-shadow: 0 0 4px rgba(0,0,0,.45); z-index: 6; pointer-events: none;
 }
 .center-axis .ca-knob {
