@@ -25,6 +25,7 @@ const p3 = $('p3'), p5 = $('p5'), p10 = $('p10'), pAll = $('pAll'), pWheel = $('
 const presetsBtn = $('presetsBtn'), presetsPop = $('presets');
 const dragHint = $('dragHint');
 const centerAxis = $('centerAxis');
+const tlLeft = $('tlLeft'), tlRight = $('tlRight');   // 胶片条左右箭头（平移/提示可拖动）
 const fsBtn = $('fsBtn'), fsRect = $('fsRect'), fsFill = $('fsFill');
 const tStart = $('tStart'), tEnd = $('tEnd'), tDur = $('tDur');
 const rePick = $('rePick'), workspace = $('workspace'), placeholder = $('placeholder');
@@ -532,6 +533,14 @@ function placeWhiteAxis() {
   centerAxis.style.left = Math.max(0, Math.min(W, x)) + 'px';
 }
 function showCenterFrame() { playT = centerTime(); scrubTo(playT); placeWhiteAxis(); }   // 中心轴所在帧实时显示
+// 拖动时的实时预览：把逐帧 seek 节流到 ~50ms 一次（手机端每 move 都 seek 会卡），其余靠 rVFC 画已呈现帧
+let _dragScrubT = 0;
+function dragScrub() {
+  playT = centerTime();
+  const now = performance.now();
+  if (now - _dragScrubT >= 50) { _dragScrubT = now; scrubTo(playT); }
+  placeWhiteAxis();
+}
 
 // 拖动时高频设 currentTime 会互相取消导致画面滞后；改为“seek 完成后追到最新目标”，
 // 避免重叠 seek，并以解码器能达到的最高速率刷新当前帧（接近系统相册的实时拖动手感）
@@ -604,7 +613,7 @@ function movePan(e) {
   if (dt > 0) panVX = dx / dt;            // px/ms，记录速度供惯性用
   panLastX = e.clientX; panLastT = now;
   viewStart = clampView(viewStart - dx / pps);   // 内容跟随手指
-  showCenterFrame(); applyPan(); layout();
+  dragScrub(); applyPan();   // 选段不随平移改变，跳过 layout()（selBand/手柄在平移层内自动跟随），手机更跟手
 }
 function upPan(e) {
   if (document.body.classList.contains('fs')) { fsScrubEnd(e); return; }
@@ -620,7 +629,7 @@ function startFling() {
     panVX *= 0.94;                     // 摩擦衰减
     const dx = panVX * dt;
     viewStart = clampView(viewStart - dx / pps);
-    showCenterFrame(); applyPan(); layout();
+    dragScrub(); applyPan();   // 惯性滑行同样跳过 layout()，降负载
     if (Math.abs(panVX) > 0.02) flingRAF = requestAnimationFrame(step);
     else { flingRAF = 0; stopScrubRender(); }
   };
@@ -707,6 +716,25 @@ stage.addEventListener('wheel', (e) => {
   }
   placeWhiteAxis();
 }, { passive: false });
+
+// 胶片条左右箭头：点击平移一段，长按连续平移（手机上作为“拖动”的替代，也提示此处可拖动）
+(function bindArrows() {
+  let iv = 0, dir = 0;
+  const panStep = () => {
+    const step = 220 / pps;   // 一次约平移 220px 对应的时间
+    viewStart = clampView(viewStart + dir * step);
+    applyPan(); placeWhiteAxis();
+  };
+  const begin = (d) => (e) => {
+    if (stage.classList.contains('empty')) return;
+    e.preventDefault(); e.stopPropagation();
+    dir = d; panStep(); clearInterval(iv); iv = setInterval(panStep, 130);
+  };
+  const end = () => { if (iv) { clearInterval(iv); iv = 0; } };
+  tlLeft.addEventListener('pointerdown', begin(-1));
+  tlRight.addEventListener('pointerdown', begin(1));
+  [tlLeft, tlRight].forEach(b => { b.addEventListener('pointerup', end); b.addEventListener('pointerleave', end); b.addEventListener('pointercancel', end); });
+})();
 
 // ===== 双滑块选段 + 拖到屏幕边缘自动平移时间轴 =====
 // 拖动选段/手柄时，若指针靠近时间轴左/右边缘，胶片条随之平移，选框可继续跟随指针移动（不再卡死在边边）

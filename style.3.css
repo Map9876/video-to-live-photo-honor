@@ -247,6 +247,19 @@ body.fs { overflow: hidden; background: #000; }   /* 全屏时禁止滚动、背
 /* 旧的蓝色播放头已并入中心白轴，隐藏 */
 .playhead { display: none; }
 
+/* 胶片条左右箭头：点击/长按平移；同时提示“此处可拖动” */
+.tl-arrow {
+  position: absolute; bottom: 6px; z-index: 7;
+  width: 34px; height: 34px; border: none; border-radius: 50%;
+  background: rgba(0,0,0,.42); color: #fff; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 1px 4px rgba(0,0,0,.3); touch-action: none;
+}
+.tl-arrow svg { display: block; }
+.tl-arrow-l { left: 6px; }
+.tl-arrow-r { right: 6px; }
+.tl-arrow:active { background: rgba(0,0,0,.62); }
+
 /* 图例 */
 .legend {
   display: flex; flex-wrap: wrap; gap: 14px; justify-content: center;
@@ -327,4 +340,14 @@ body.fs { overflow: hidden; background: #000; }   /* 全屏时禁止滚动、背
   .time-readout .tr-item b { font-size: 22px; }
   .time-readout .tr-k { font-size: 14px; }
   .time-readout .tr-item { gap: 6px; }
+}
+
+/* ===== 手机端：设置弹窗限制在视口内（避免右侧超出）；按钮压扁 ===== */
+@media (max-width: 767px) {
+  .presets-pop {
+    position: fixed; left: 50%; right: auto; transform: translateX(-50%);
+    bottom: 76px; width: max(220px, 88vw); max-width: calc(100vw - 16px); z-index: 40;
+  }
+  .ctrl { padding: 7px 6px; font-size: 13px; }
+  .ctrl.icon { padding: 8px 8px; }
 }
