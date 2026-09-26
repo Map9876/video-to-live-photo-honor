@@ -521,7 +521,23 @@ function updateReadout() {
 let draggingPlay = false, draggingPan = false;
 let panLastX = 0, panLastT = 0, panVX = 0, flingRAF = 0;
 function centerTime() { return Math.min(duration, Math.max(0, viewStart + (timeline.clientWidth / 2) / pps)); }
-function showCenterFrame() { playT = centerTime(); preview.currentTime = playT; }   // 中心轴所在帧实时显示
+function showCenterFrame() { playT = centerTime(); scrubTo(playT); }   // 中心轴所在帧实时显示
+
+// 拖动时高频设 currentTime 会互相取消导致画面滞后；改为“seek 完成后追到最新目标”，
+// 避免重叠 seek，并以解码器能达到的最高速率刷新当前帧（接近系统相册的实时拖动手感）
+let _scrubBusy = false, _scrubTarget = null;
+function scrubTo(t) {
+  _scrubTarget = t;
+  if (Math.abs(preview.currentTime - t) < 1e-3) { _scrubBusy = false; _scrubTarget = null; return; }
+  if (_scrubBusy) return;
+  _scrubBusy = true;
+  if (preview.fastSeek) { try { preview.fastSeek(t); } catch (_) { preview.currentTime = t; } }
+  else preview.currentTime = t;
+}
+preview.addEventListener('seeked', () => {
+  if (_scrubTarget !== null && Math.abs(preview.currentTime - _scrubTarget) > 1e-3) preview.currentTime = _scrubTarget;
+  else { _scrubBusy = false; _scrubTarget = null; }
+});
 function onTimelineDown(e) {
   if (stage.classList.contains('empty')) return;
   if (e.target.closest('button, input, a')) return;   // 控件不触发平移（手柄/选段已 stopPropagation）
@@ -577,27 +593,8 @@ fsBtn.addEventListener('click', (e) => {
   e.stopPropagation();
   const on = document.body.classList.toggle('fs');
   fsRect.hidden = !on;
-  if (on) {
-    updateFsProgress();
-    // 真全屏：隐藏手机浏览器地址栏（Android/Chrome 支持任意元素全屏；iOS 仅 video 可全屏，退回 CSS 铺满）
-    const el = previewWrap;
-    if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
-    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
-  } else {
-    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
-    else if (document.webkitFullscreenElement && document.webkitExitFullscreen) document.webkitExitFullscreen();
-  }
+  if (on) updateFsProgress();
 });
-// 用户用系统手势退出原生全屏时，同步关掉我们的全屏态
-function syncFsFromNative() {
-  const native = document.fullscreenElement || document.webkitFullscreenElement;
-  if (!native && document.body.classList.contains('fs')) {
-    document.body.classList.remove('fs');
-    fsRect.hidden = true;
-  }
-}
-document.addEventListener('fullscreenchange', syncFsFromNative);
-document.addEventListener('webkitfullscreenchange', syncFsFromNative);
 let fsDragging = false, fsStartX = 0, fsStartT = 0;
 function startFsScrub(e) {
   fsDragging = true; fsStartX = e.clientX; fsStartT = playT;
@@ -609,7 +606,7 @@ function fsScrubMove(e) {
   const dx = e.clientX - fsStartX;
   const dt = (dx / window.innerWidth) * duration;   // 横向拖满一屏 = 整段视频
   playT = Math.min(duration, Math.max(0, fsStartT + dt));
-  preview.currentTime = playT;            // 主视频实时跳到该帧
+  scrubTo(playT);                           // 主视频实时跳到该帧
   updateFsProgress();                        // 进度条同步当前位置（实时）
 }
 function fsScrubEnd(e) { fsDragging = false; try { stage.releasePointerCapture(e.pointerId); } catch (_) {} }
@@ -706,6 +703,7 @@ selBand.addEventListener('pointerdown', (e) => {
 // ===== 播放选段 =====
 function playSegment() {
   if (!duration) return;
+  _scrubBusy = false; _scrubTarget = null;   // 退出拖动态，避免与播放的初始 seek 冲突
   preview.currentTime = sel.start;
   // 首次自动播放没有用户手势时会被浏览器拦截（NotAllowedError）——吞掉即可，不弹未捕获异常
   const p = preview.play();
