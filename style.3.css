@@ -247,17 +247,15 @@ body.fs { overflow: hidden; background: #000; padding: 0 !important; }   /* 全�
 /* 旧的蓝色播放头已并入中心白轴，隐藏 */
 .playhead { display: none; }
 
-/* 胶片条左右箭头：点击/长按平移；同时提示“此处可拖动” */
+/* 胶片条下方白色区域：左右箭头，点击/长按平移；同时提示“此处可拖动” */
+.tl-nav { display: flex; justify-content: space-between; padding: 4px 10px 0; }
 .tl-arrow {
-  position: absolute; bottom: 6px; z-index: 7;
   width: 34px; height: 34px; border: none; border-radius: 50%;
   background: rgba(0,0,0,.42); color: #fff; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   box-shadow: 0 1px 4px rgba(0,0,0,.3); touch-action: none;
 }
 .tl-arrow svg { display: block; }
-.tl-arrow-l { left: 6px; }
-.tl-arrow-r { right: 6px; }
 .tl-arrow:active { background: rgba(0,0,0,.62); }
 
 /* 图例 */

@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>LivePhoto 制作</title>
-  <link rel="stylesheet" href="style.3.css?v=19" />
+  <link rel="stylesheet" href="style.3.css?v=20" />
 </head>
 <body>
   <!-- 全屏上传：无标题，点击任意位置选择视频 -->
@@ -75,7 +75,9 @@
         </div>
         <!-- 中心白轴：位于胶片条正中（屏幕中心＝当前位置），向上、向下均溢出时间轴 -->
         <div class="center-axis" id="centerAxis"><span class="ca-knob"></span></div>
-        <!-- 胶片条左右箭头：点击/长按平移；同时提示“此处可拖动” -->
+      </div>
+      <!-- 胶片条下方白色区域：左右箭头，点击/长按平移；同时提示“此处可拖动” -->
+      <div class="tl-nav">
         <button class="tl-arrow tl-arrow-l" id="tlLeft" aria-label="左移胶片条（也可拖动）">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
         </button>
@@ -123,6 +125,6 @@
 
   <input id="file" type="file" accept="video/*" hidden />
 
-  <script src="app.3.js?v=19"></script>
+  <script src="app.3.js?v=20"></script>
 </body>
 </html>
