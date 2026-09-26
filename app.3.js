@@ -25,7 +25,7 @@ const p3 = $('p3'), p5 = $('p5'), p10 = $('p10'), pAll = $('pAll');
 const presetsBtn = $('presetsBtn'), presetsPop = $('presets');
 const dragHint = $('dragHint');
 const centerAxis = $('centerAxis');
-const fsBtn = $('fsBtn'), fsRect = $('fsRect'), fsCanvas = $('fsCanvas');
+const fsBtn = $('fsBtn'), fsRect = $('fsRect'), fsFill = $('fsFill');
 const tStart = $('tStart'), tEnd = $('tEnd'), tDur = $('tDur');
 const rePick = $('rePick'), workspace = $('workspace'), placeholder = $('placeholder');
 const loading = $('loading'), loadingText = $('loadingText');
@@ -567,26 +567,23 @@ function startFling() {
   };
   flingRAF = requestAnimationFrame(step);
 }
-// ===== 全屏模式：视频铺满 + 矩形当前帧指示 + 左右拖动前进/后退（无需胶片条）=====
-// 拖动时实时把当前帧画进矩形（canvas），即“实时播放”预览
-function updateFsThumb() {
-  if (!fsRect || fsRect.hidden || !fsCanvas) return;
-  const cw = preview.videoWidth, ch = preview.videoHeight;
-  if (!cw || !ch) return;
-  if (fsCanvas.width !== cw) { fsCanvas.width = cw; fsCanvas.height = ch; }
-  try { fsCanvas.getContext('2d').drawImage(preview, 0, 0, cw, ch); } catch (_) {}
+// ===== 全屏模式：视频铺满 + 屏幕中下“半透明进度条”代表当前位置 + 左右拖动前进/后退（无需胶片条）=====
+function updateFsProgress() {
+  if (!fsRect || fsRect.hidden || !fsFill || !duration) return;
+  const pct = Math.max(0, Math.min(100, (playT / duration) * 100));
+  fsFill.style.width = pct + '%';
 }
 fsBtn.addEventListener('click', (e) => {
   e.stopPropagation();
   const on = document.body.classList.toggle('fs');
   fsRect.hidden = !on;
-  if (on) updateFsThumb();
+  if (on) updateFsProgress();
 });
 let fsDragging = false, fsStartX = 0, fsStartT = 0;
 function startFsScrub(e) {
   fsDragging = true; fsStartX = e.clientX; fsStartT = playT;
   try { stage.setPointerCapture(e.pointerId); } catch (_) {}
-  preview.pause(); e.preventDefault(); updateFsThumb();
+  preview.pause(); e.preventDefault(); updateFsProgress();
 }
 function fsScrubMove(e) {
   if (!fsDragging) return;
@@ -594,7 +591,7 @@ function fsScrubMove(e) {
   const dt = (dx / window.innerWidth) * duration;   // 横向拖满一屏 = 整段视频
   playT = Math.min(duration, Math.max(0, fsStartT + dt));
   preview.currentTime = playT;            // 主视频实时跳到该帧
-  updateFsThumb();                        // 矩形同步显示当前帧（实时）
+  updateFsProgress();                        // 进度条同步当前位置（实时）
 }
 function fsScrubEnd(e) { fsDragging = false; try { stage.releasePointerCapture(e.pointerId); } catch (_) {} }
 // 整屏（含胶片条上方视频区、下方文字区）都可平移 / 缩放胶片条，视为同一同步层
@@ -698,7 +695,7 @@ function playSegment() {
 btnPlay.addEventListener('click', playSegment);
 preview.addEventListener('timeupdate', () => {
   if (preview.currentTime >= sel.end) preview.pause();
-  updateFsThumb();
+  updateFsProgress();
   if (!draggingPan) {                       // 播放时中心白轴停在播放位置：胶片自动滚动跟随
     playT = preview.currentTime;
     viewStart = clampView(playT - (timeline.clientWidth / 2) / pps);

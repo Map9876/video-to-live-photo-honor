@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>LivePhoto 制作</title>
-  <link rel="stylesheet" href="style.3.css?v=6" />
+  <link rel="stylesheet" href="style.3.css?v=7" />
 </head>
 <body>
   <!-- 全屏上传：无标题，点击任意位置选择视频 -->
@@ -21,7 +21,7 @@
         <video id="preview" playsinline></video>
         <div id="coverBadge" class="cover-badge" hidden></div>
         <button class="fs-btn" id="fsBtn" aria-label="全屏预览">⛶</button>
-        <div class="fs-rect" id="fsRect" hidden><canvas class="fs-canvas" id="fsCanvas"></canvas></div>
+        <div class="fs-rect" id="fsRect" hidden><div class="fs-fill" id="fsFill"></div></div>
         <div class="drag-hint" id="dragHint">
           <div class="dh-badge"><div class="dh-ic">↔</div><div>整屏任意位置可拖动胶片条<br>双指缩放</div></div>
         </div>
@@ -109,6 +109,6 @@
 
   <input id="file" type="file" accept="video/*" hidden />
 
-  <script src="app.3.js?v=6"></script>
+  <script src="app.3.js?v=7"></script>
 </body>
 </html>
