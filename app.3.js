@@ -51,7 +51,9 @@ const BASE_PPS = CELL / FRAME;   // 56px / 0.5s = 112 px/秒（基础缩放）�
       else top = 80;                        // 覆盖模式：兜底，保证视频退到地址栏下方
     }
     document.body.style.paddingTop = top + 'px';
-    if (typeof fitPreview === 'function') fitPreview();
+    // 初始加载时 videoW/videoH 尚未初始化（TDZ），调 fitPreview 会抛错并中断整段脚本；
+    // 用 try/catch 兜住，等视频载入、resize 时再正常执行。
+    if (typeof fitPreview === 'function') { try { fitPreview(); } catch (_) {} }
   };
   if (window.visualViewport) window.visualViewport.addEventListener('resize', apply);
   window.addEventListener('resize', apply);
