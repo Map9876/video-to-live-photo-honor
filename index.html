@@ -4,9 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>LivePhoto 制作</title>
-  <link rel="stylesheet" href="style.3.css?v=21" />
+  <link rel="stylesheet" href="style.3.css?v=22" />
 </head>
 <body>
+  <!-- 顶部头标：占位把整块内容顶到地址栏下方（地址栏只盖住头标顶，视频不再被遮） -->
+  <header class="app-header" id="appHeader"><span class="ah-title">视频 → LivePhoto</span></header>
   <!-- 全屏上传：无标题，点击任意位置选择视频 -->
   <main id="stage" class="stage empty">
     <div class="placeholder" id="placeholder">
@@ -125,6 +127,6 @@
 
   <input id="file" type="file" accept="video/*" hidden />
 
-  <script src="app.3.js?v=21"></script>
+  <script src="app.3.js?v=22"></script>
 </body>
 </html>

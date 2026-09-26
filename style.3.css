@@ -25,9 +25,19 @@ body {
   background: var(--bg); color: var(--text);
   font: 14px/1.4 -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
   display: flex; flex-direction: column;
-  height: 100vh; overflow: hidden;   /* 100vh=全屏(配合 viewport-fit=cover)；地址栏高度由 JS 用 padding-top 预留 */
+  height: 100vh; overflow: hidden;   /* 100vh=全屏(配合 viewport-fit=cover)；地址栏高度由顶部头标占位，不再用 padding */
   -webkit-user-select: none; user-select: none;
 }
+
+/* 顶部头标：真实占据顶部空间，把下方整块（含视频）整体顶到地址栏下方；
+   地址栏只盖住头标上半截，标题置于头标底部可见区。高度由 JS 按地址栏实际高度设定。 */
+.app-header {
+  flex: 0 0 auto; display: flex; align-items: flex-end;
+  padding: 0 14px 8px; background: var(--panel);
+  border-bottom: 1px solid var(--line); overflow: hidden;
+}
+.app-header .ah-title { font-weight: 600; font-size: 15px; color: var(--text); line-height: 1; }
+body.fs .app-header { display: none; }   /* 全屏模式不显示头标，视频铺满 */
 
 /* ===== 舞台 ===== */
 .stage { flex: 1; position: relative; display: flex; flex-direction: column; min-height: 0; }

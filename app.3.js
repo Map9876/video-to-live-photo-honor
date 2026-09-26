@@ -26,6 +26,7 @@ const presetsBtn = $('presetsBtn'), presetsPop = $('presets');
 const dragHint = $('dragHint');
 const centerAxis = $('centerAxis');
 const tlLeft = $('tlLeft'), tlRight = $('tlRight');   // 胶片条左右箭头（平移/提示可拖动）
+const appHeader = $('appHeader');   // 顶部头标：用于把内容整体顶到地址栏下方
 const fsBtn = $('fsBtn'), fsRect = $('fsRect'), fsFill = $('fsFill');
 const tStart = $('tStart'), tEnd = $('tEnd'), tDur = $('tDur');
 const rePick = $('rePick'), workspace = $('workspace'), placeholder = $('placeholder');
@@ -35,21 +36,19 @@ const dlWrap = $('dlWrap'), dlLink = $('dlLink'), dlMsg = $('dlMsg'), dlClose = 
 
 const BASE_PPS = CELL / FRAME;   // 56px / 0.5s = 112 px/秒（基础缩放）；胶片条每格 = 0.5s，与 CSS --cell 对齐
 
-// 手机端：浏览器地址栏/底栏会浮在页面顶部之上盖住视频。用 visualViewport 的偏移把内容推到地址栏下方
-// （offsetTop=地址栏高度；底部工具栏高度 = innerHeight - offsetTop - 可视高度）。
-// 注意：部分浏览器地址栏为“覆盖模式”，offsetTop 恒为 0；此时用移动端兜底常量(约地址栏高度)预留。
-// 另外初始布局未稳时 offsetTop 可能暂为 0，故在 rAF/load/timeout 多时机补跑以拿到真实高度。
+// 手机端：浏览器地址栏浮在页面顶部盖住内容。做法：让“顶部头标”真实占据顶部空间（普通文档流），
+// 高度 = 地址栏高度(覆盖模式兜底 56) + 可见标题区 32px；标题置于头标底部可见区。
+// 这样地址栏只盖住头标上半截，视频始终在其下方。多时机补读地址栏真实高度。
 (function fixUrlBar() {
   const vv = window.visualViewport;
   const mq = window.matchMedia('(max-width: 767px)');
   const apply = () => {
-    if (!vv) return;
+    if (!appHeader) return;
     const isMobile = mq.matches;
-    const safeTop = isMobile ? 56 : 0;            // 覆盖模式兜底：地址栏约 56px(Android Chrome)
-    const top = vv.offsetTop || safeTop;
-    document.body.style.paddingTop = top + 'px';
-    const bottom = isMobile ? Math.max(0, window.innerHeight - vv.offsetTop - vv.height) : 0;
-    document.body.style.paddingBottom = bottom + 'px';
+    let top = 56;                                   // 覆盖模式兜底：地址栏约 56px
+    if (vv) top = Math.max(vv.offsetTop || 0, 56);
+    const h = isMobile ? (top + 32) : 44;           // 桌面无地址栏，仅一条 44px 品牌条
+    appHeader.style.height = h + 'px';
   };
   if (vv) { vv.addEventListener('resize', apply); vv.addEventListener('scroll', apply); }
   window.addEventListener('resize', apply);
