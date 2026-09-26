@@ -301,7 +301,7 @@ function layout() {
   handleR.style.left = xe + 'px';
   playhead.style.left = xp + 'px';
   maskL.style.width = xs + 'px';
-  maskR.style.width = (contentWidth() - xe) + 'px';
+  maskR.style.left = xe + 'px';   // 右遮罩锚定 xe→时间轴右缘，避免选段右侧露出未遮罩亮条（高亮一段再黑色）
   selBand.style.left = xs + 'px';
   selBand.style.width = (xe - xs) + 'px';
   applyPan();
@@ -548,6 +548,7 @@ function bindHandle(el, which) {
       let ns = which === 'l' ? t : (t - len);
       ns = Math.max(0, Math.min(duration - len, ns));
       sel.start = ns; sel.end = ns + len;
+      playT = sel.start;                 // 播放头跟随选段左缘，避免停在黑遮罩里变成“高亮一段”
       updateReadout(); layout();
       preview.currentTime = sel.start;   // 拖动选段时实时显示“起始帧”画面
     };
@@ -575,6 +576,7 @@ selBand.addEventListener('pointerdown', (e) => {
     const dt = xToTime(ev.clientX - rect.left) - tDown;
     let ns = Math.max(0, Math.min(duration - (e0 - s0), s0 + dt));
     sel.start = ns; sel.end = ns + (e0 - s0);
+    playT = sel.start;                   // 播放头跟随选段左缘
     updateReadout(); layout();
     preview.currentTime = sel.start;     // 实时显示起始帧
   };
@@ -614,9 +616,19 @@ document.addEventListener('keydown', (e) => {
   } else preview.pause();
 });
 
-// ===== 帧步进（按探测到的真实帧率）=====
-btnStepB.addEventListener('click', () => { playT = Math.max(0, playT - 1 / fps); preview.currentTime = playT; layout(); });
-btnStepF.addEventListener('click', () => { playT = Math.min(duration, playT + 1 / fps); preview.currentTime = playT; layout(); });
+// ===== 前进/后退「选段」（两个粉色轴同步整体移动一帧，画面实时跟随）=====
+function stepSelection(dir) {   // dir = -1 后退 / +1 前进
+  const dt = dir / fps;
+  const len = sel.end - sel.start;            // 选段时长保持不变
+  let ns = sel.start + dt;
+  ns = Math.max(0, Math.min(duration - len, ns));   // 整段锁在 [0, duration] 内
+  sel.start = ns; sel.end = ns + len;
+  playT = sel.start;                          // 播放头跟随左轴
+  preview.currentTime = sel.start;            // 实时展示选段当前帧画面
+  updateReadout(); layout();
+}
+btnStepB.addEventListener('click', () => stepSelection(-1));
+btnStepF.addEventListener('click', () => stepSelection(1));
 
 // 选段预设：从当前「起点」取固定长度（起点可由左滑块拖到任意位置）
 function applyPreset(sec) {
