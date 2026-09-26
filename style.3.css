@@ -30,10 +30,11 @@ body {
   -webkit-user-select: none; user-select: none;
 }
 
-/* 顶部头标：普通文档流、自然高度，仅做一条品牌条；不再用 JS 预留地址栏高度（交给 svh）。 */
+/* 顶部头标：它本身就当作“地址栏缓冲条”——预留空间放在头标的 padding-top 里（不是头标上方另留空白条），
+   标题用 align-items:flex-end 贴在头标底部，地址栏浮在头标上方时标题仍可见；视频紧接头标之下、无空白间隙。 */
 .app-header {
-  flex: 0 0 auto; display: flex; align-items: center;
-  padding: 10px 14px; padding-top: max(10px, env(safe-area-inset-top));
+  flex: 0 0 auto; display: flex; align-items: flex-end;
+  padding: 0 14px 8px; min-height: 44px;
   background: var(--panel); border-bottom: 1px solid var(--line);
 }
 .app-header .ah-title { font-weight: 600; font-size: 15px; color: var(--text); line-height: 1; }

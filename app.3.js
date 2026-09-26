@@ -50,7 +50,9 @@ const BASE_PPS = CELL / FRAME;   // 56px / 0.5s = 112 px/秒（基础缩放）�
       if (ot > 1) top = hasDvh ? 0 : ot;   // 推送模式：有 dvh 不预留，否则用真实高度
       else top = 80;                        // 覆盖模式：兜底，保证视频退到地址栏下方
     }
-    document.body.style.paddingTop = top + 'px';
+    document.body.style.paddingTop = '0px';
+    // 把地址栏预留空间放进头标自身（padding-top），而不是头标上方另留空白条，避免“空白遮挡视频”。
+    if (appHeader) appHeader.style.paddingTop = top + 'px';
     // 初始加载时 videoW/videoH 尚未初始化（TDZ），调 fitPreview 会抛错并中断整段脚本；
     // 用 try/catch 兜住，等视频载入、resize 时再正常执行。
     if (typeof fitPreview === 'function') { try { fitPreview(); } catch (_) {} }
