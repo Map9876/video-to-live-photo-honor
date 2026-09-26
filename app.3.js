@@ -411,7 +411,8 @@ function buildRuler() {
   ruler.style.width = contentWidth() + 'px';
   ruler.innerHTML = '';
 
-  // —— 主刻度：每秒一个（放大时），缩小自动变 5s/10s/分钟级，标签 0000/0001… 居中带圆点 ——
+  // —— 主刻度：每秒一个（放大时），缩小自动变 5s/10s/分钟级，标签 0000/0001… ——
+  // 标签位于整秒位置；中心点（圆点）落在相邻两秒刻度的正中，而非标签正下方。
   const majorStep = niceStepSeconds(64 / pps);
   for (let s = Math.floor(t0 / majorStep) * majorStep; s <= t1 + majorStep; s += majorStep) {
     if (s < -1e-6) continue;
@@ -420,12 +421,19 @@ function buildRuler() {
     const x = timeToX(s);
     tk.style.left = x + 'px';
     if (x < 12) tk.style.transform = 'none';   // 最左侧主刻度不被 overflow:hidden 裁掉
-    tk.innerHTML = '<span class="lab">' + String(Math.max(0, Math.floor(s))).padStart(4, '0') + '</span><span class="dot"></span>';
+    tk.innerHTML = '<span class="lab">' + String(Math.max(0, Math.floor(s))).padStart(4, '0') + '</span>';
     ruler.appendChild(tk);
+    // 中心点：两相邻秒刻度正中（半步处）
+    const dm = document.createElement('div');
+    dm.className = 'middot';
+    dm.style.left = timeToX(s + majorStep / 2) + 'px';
+    if (x + (majorStep / 2) * pps < 12) dm.style.transform = 'none';
+    ruler.appendChild(dm);
   }
 
   // —— 帧刻度：放得够大才出现；每 5 帧标一次 5f/10f/15f/20f… ——
   const framePx = pps / fps;
+  const halfFrame = Math.round(fps / 2);
   if (framePx >= 5) {
     const g0 = Math.floor(t0 * fps), g1 = Math.ceil(t1 * fps), ifps = Math.max(1, Math.round(fps));
     for (let gf = g0; gf <= g1; gf++) {
@@ -433,6 +441,7 @@ function buildRuler() {
       if (t < t0 - 1e-6 || t > t1 + 1e-6) continue;
       const inSec = ((gf % ifps) + ifps) % ifps;
       if (inSec === 0) continue;                 // 整秒已作主刻度
+      if (majorStep === 1 && inSec === halfFrame) continue;   // 让位给主刻度中心点，避免重叠
       const tk = document.createElement('div');
       tk.className = 'tick frm';
       tk.style.left = timeToX(t) + 'px';
@@ -479,15 +488,16 @@ function movePlayhead(e) {
 }
 function onTimelineDown(e) {
   if (stage.classList.contains('empty')) return;
+  if (e.target.closest('button, input, a')) return;   // 控件不触发平移（手柄/选段已 stopPropagation）
   if (e.target.closest('.handle')) return;        // 手柄自己处理
   if (e.target.closest('.sel-band')) return;      // 选段矩形自己处理
   if (e.pointerType === 'mouse' && e.button !== 0) return;
   e.preventDefault();
   draggingPan = true; draggingPlay = true;
   preview.pause();
-  try { timeline.setPointerCapture(e.pointerId); } catch (_) {}
+  try { stage.setPointerCapture(e.pointerId); } catch (_) {}
   panRectLeft = timeline.getBoundingClientRect().left;
-  panGrabbedT = viewStart + (e.clientX - panRectLeft) / pps;   // 抓住的这一帧
+  panGrabbedT = viewStart + (e.clientX - panRectLeft) / pps;   // 抓住的这一帧（任意位置起手都映射到内容坐标）
   preview.currentTime = panGrabbedT;
   movePan(e);
 }
@@ -500,15 +510,16 @@ function movePan(e) {
   preview.currentTime = playT;
   applyPan(); layout();
 }
-function upPan(e) { draggingPan = false; draggingPlay = false; try { timeline.releasePointerCapture(e.pointerId); } catch (_) {} }
-timeline.addEventListener('pointerdown', onTimelineDown);
-timeline.addEventListener('pointermove', movePan);
-timeline.addEventListener('pointerup', upPan);
-timeline.addEventListener('pointercancel', upPan);
+function upPan(e) { draggingPan = false; draggingPlay = false; try { stage.releasePointerCapture(e.pointerId); } catch (_) {} }
+// 整屏（含胶片条上方视频区、下方文字区）都可平移 / 缩放胶片条，视为同一同步层
+stage.addEventListener('pointerdown', onTimelineDown);
+stage.addEventListener('pointermove', movePan);
+stage.addEventListener('pointerup', upPan);
+stage.addEventListener('pointercancel', upPan);
 
-// 双指放缩（移动端）：焦点帧保持原位，持续缩放
+// 双指放缩（移动端）：焦点帧保持原位，持续缩放——整屏任意位置起手均可
 let pinch = null;
-timeline.addEventListener('touchstart', (e) => {
+stage.addEventListener('touchstart', (e) => {
   if (e.touches.length === 2) {
     draggingPan = false; draggingPlay = false;
     const [a, b] = e.touches;
@@ -519,7 +530,7 @@ timeline.addEventListener('touchstart', (e) => {
               focalT: viewStart + (midX - tl) / pps };
   }
 }, { passive: false });
-timeline.addEventListener('touchmove', (e) => {
+stage.addEventListener('touchmove', (e) => {
   if (e.touches.length === 2 && pinch) {
     e.preventDefault();
     const [a, b] = e.touches;
@@ -531,8 +542,8 @@ timeline.addEventListener('touchmove', (e) => {
     pps = np; applyPan(); applyZoom(); layout();
   }
 }, { passive: false });
-timeline.addEventListener('touchend', (e) => { if (e.touches.length < 2) pinch = null; });
-timeline.addEventListener('touchcancel', () => { pinch = null; });
+stage.addEventListener('touchend', (e) => { if (e.touches.length < 2) pinch = null; });
+stage.addEventListener('touchcancel', () => { pinch = null; });
 
 // ===== 双滑块选段 =====
 function bindHandle(el, which) {

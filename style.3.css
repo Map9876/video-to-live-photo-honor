@@ -118,6 +118,8 @@ body {
 .tick.maj .lab { font-size: 11px; font-weight: 700; color: var(--text); }
 .tick.maj .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-top: 1px; }   /* 中心圆点=精确位置 */
 .tick.frm .lab { font-size: 9px; color: var(--muted); opacity: .85; }
+/* 主刻度中心点：落在相邻两秒刻度正中（而非标签正下方） */
+.middot { position: absolute; top: 14px; transform: translateX(-50%); width: 5px; height: 5px; border-radius: 50%; background: var(--accent); z-index: 2; }
 
 /* 胶片条：N 个缩略图格无缝平铺，填满整个时间轴宽度；整条两端圆角 */
 .strip {
