@@ -30,15 +30,26 @@ body {
   -webkit-user-select: none; user-select: none;
 }
 
-/* 顶部头标：它本身就当作“地址栏缓冲条”——预留空间放在头标的 padding-top 里（不是头标上方另留空白条），
-   标题用 align-items:flex-end 贴在头标底部，地址栏浮在头标上方时标题仍可见；视频紧接头标之下、无空白间隙。 */
+/* 头标：移动端浮在视频上方（半透明渐变条），不占竖向空间——地址栏/标题都叠加在视频上，不再预留空白条。
+   桌面端恢复为普通顶栏（position:static）。 */
 .app-header {
-  flex: 0 0 auto; display: flex; align-items: flex-end;
-  padding: 0 14px 8px; min-height: 44px;
-  background: var(--panel); border-bottom: 1px solid var(--line);
+  position: absolute; top: 0; left: 0; right: 0; z-index: 9;
+  display: flex; align-items: center;
+  padding: calc(env(safe-area-inset-top, 0px) + 8px) 14px 14px;
+  background: linear-gradient(rgba(0,0,0,.45), rgba(0,0,0,0));
+  pointer-events: none;
 }
-.app-header .ah-title { font-weight: 600; font-size: 15px; color: var(--text); line-height: 1; }
+.app-header .ah-title { font-weight: 600; font-size: 15px; color: #fff; line-height: 1; text-shadow: 0 1px 3px rgba(0,0,0,.7); }
 body.fs .app-header { display: none; }   /* 全屏模式不显示头标，视频铺满 */
+@media (min-width: 768px) {
+  .app-header {
+    position: static; pointer-events: auto;
+    background: var(--panel); border-bottom: 1px solid var(--line);
+    padding: 10px 14px;
+  }
+  .app-header .ah-title { color: var(--text); text-shadow: none; }
+  .workspace { padding: 12px; }
+}
 
 /* ===== 舞台 ===== */
 .stage { flex: 1; position: relative; display: flex; flex-direction: column; min-height: 0; }
@@ -57,7 +68,7 @@ body.fs .app-header { display: none; }   /* 全屏模式不显示头标，视频
 .workspace {
   position: relative;   /* 中心白轴的定位容器：从视频顶延伸到工作区底，不窜到视频上方空白 */
   flex: 1; display: none; flex-direction: column; align-items: center; justify-content: flex-start;
-  gap: 12px; padding: 12px; overflow-y: auto; touch-action: pan-y; min-height: 0; width: 100%;
+  gap: 12px; padding: 0 12px 12px; overflow-y: auto; touch-action: pan-y; min-height: 0; width: 100%;
 }
 .stage:not(.empty) .workspace { display: flex; }
 
