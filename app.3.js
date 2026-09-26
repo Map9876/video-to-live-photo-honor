@@ -198,6 +198,7 @@ function loadFile(f) {
     updateReadout();
     buildStrip();                 // 胶片条：先铺占位格
     layout();
+    ensureSeeker();               // 提前加载封面抽帧用的离屏视频，导出时无需临时读整文件
     [btnPlay, btnStepB, btnStepF, btnSetCover, btnExport, p3, p5, p10, pAll, presetsBtn].forEach(b => b.disabled = false);
     showLoading('生成胶片条…');
     preview.pause();              // 抽帧期间暂停主预览，避免与主预览抢解码资源导致抽帧卡死
@@ -272,6 +273,13 @@ dlWrap.addEventListener('click', (e) => { if (e.target === dlWrap) dlWrap.hidden
 // 全分辨率抽封面帧（不缩放，避免导出封面模糊）
 // 抽封面帧：必须先等视频就绪、seek 后再等“真实呈现帧”才画——否则首次导出时
 // seeker 尚未解码，会画出空白/损坏 JPEG，导致相册报“图片已损坏”（第二次才正常）。
+// 提前把封面抽帧用的离屏视频加载好（与预览同一份 blob），导出时 grabCover 无需临时读整文件
+function ensureSeeker() {
+  if (!seeker) { seeker = document.createElement('video'); seeker.muted = true; seeker.preload = 'auto'; }
+  if (!seeker.src) { seeker.src = url; try { seeker.load(); } catch (_) {} }
+  return seeker;
+}
+
 function grabCover(v, t) {
   return new Promise((resolve, reject) => {
     const ensureReady = () => new Promise((res, rej) => {
@@ -287,10 +295,13 @@ function grabCover(v, t) {
     const draw = () => {
       const vw = v.videoWidth, vh = v.videoHeight;
       if (!vw || !vh) { requestAnimationFrame(() => waitFrame().then(draw).catch(reject)); return; }
+      const MAXC = 1920;   // 封面最长边上限：手机显示足够清晰，且 toDataURL 远快于 4K 全分辨率
+      const sc = Math.min(1, MAXC / Math.max(vw, vh));
+      const cw = Math.max(2, Math.round(vw * sc)), ch = Math.max(2, Math.round(vh * sc));
       const c = document.createElement('canvas');
-      c.width = vw; c.height = vh;
-      c.getContext('2d').drawImage(v, 0, 0, vw, vh);
-      resolve(c.toDataURL('image/jpeg', 0.92));
+      c.width = cw; c.height = ch;
+      c.getContext('2d').drawImage(v, 0, 0, cw, ch);
+      resolve(c.toDataURL('image/jpeg', 0.9));
     };
     ensureReady().then(() => {
       const target = Math.min(t, Math.max(0, (v.duration || t) - 0.001));
@@ -847,7 +858,7 @@ btnExport.addEventListener('click', async () => {
     const mov = new Uint8Array(buffer);
     const name = (loadedName || 'livephoto').replace(/\.[^.]+$/, '');
 
-    // 封面 JPEG：全分辨率抽帧（对齐 Python make_cover 的高清封面，避免模糊）
+    // 封面 JPEG：抽帧并裁到最长边 1920（手机显示足够清晰、toDataURL 飞快；seeker 已在载入时预热）
     if (!seeker) { seeker = document.createElement('video'); seeker.muted = true; seeker.preload = 'auto'; }
     if (!seeker.src) seeker.src = url;
     const coverB64 = await grabCover(seeker, coverT);
